@@ -58,6 +58,9 @@ export class AiModule {
 
     // ─── AgentToken Lifecycle ───
 
+    /**
+     * Create an AgentToken granting specific deterministic limits to an AI Agent.
+     */
     async createAgentToken(data: {
         agent_id: string;
         permissions?: string[];
@@ -81,68 +84,90 @@ export class AiModule {
         return this.client.post('/api/v1/auth/ai/tokens/', data);
     }
 
+    /**
+     * Set the SDK to operate on behalf of an Agent using the generated Agent Token payload.
+     * Overrides standard `Authorization` headers with `AgentBearer`.
+     */
     setAgentToken(token: string): void {
         this.agentToken = token;
     }
 
+    /** Disables the active Agent override and reverts to standard User session requests. */
     clearAgentToken(): void {
         this.agentToken = null;
     }
 
+    /** Check if the SDK is currently mocking requests as an AI Agent. */
     isAgentMode(): boolean {
         return this.agentToken !== null;
     }
 
+    /** List previously provisioned active Agent tokens. */
     async listAgentTokens(): Promise<AgentTokenSummary[]> {
         return this.client.get('/api/v1/auth/ai/tokens/');
     }
 
+    /** Fetch the status and configuration of a specific AgentToken. */
     async getAgentToken(tokenId: number): Promise<AgentTokenSummary> {
         return this.client.get(`/api/v1/auth/ai/tokens/${tokenId}/`);
     }
 
+    /** Irreversibly revoke a targeted AgentToken from acting upon the Tenant. */
     async revokeAgentToken(tokenId: number): Promise<{ status: 'revoked' }> {
         return this.client.post(`/api/v1/auth/ai/tokens/${tokenId}/revoke/`);
     }
 
+    /** Temporarily freeze an AgentToken by forcibly closing its Circuit Breaker. */
     async suspendAgentToken(tokenId: number): Promise<{ status: 'suspended' }> {
         return this.client.post(`/api/v1/auth/ai/tokens/${tokenId}/suspend/`);
     }
 
+    /** Emergency kill-switch to wipe all operational Agent Tokens. */
     async revokeAllAgentTokens(): Promise<{ status: 'revoked'; count: number }> {
         return this.client.post('/api/v1/auth/ai/tokens/revoke-all/');
     }
 
     // ─── Circuit Breaker ───
 
+    /** Satisfy an Agent's Dead-Man's switch heartbeat requirement to prevent suspension. */
     async sendHeartbeat(tokenId: number): Promise<{ status: 'ok' }> {
         return this.client.post(`/api/v1/auth/ai/tokens/${tokenId}/heartbeat/`);
     }
 
     // ─── Human in the Loop (HITL) ───
 
+    /** List intercepted HTTP 202 actions waiting for Human interaction / approval. */
     async listPendingActions(): Promise<AgentPendingAction[]> {
         return this.client.get('/api/v1/auth/ai/pending-actions/');
     }
 
+    /** Complete a pending HITL authorization to finally flush the Agent action to backend systems. */
     async confirmPendingAction(confirmationToken: string): Promise<{ status: 'confirmed' }> {
         return this.client.post('/api/v1/auth/ai/pending-actions/confirm/', { token: confirmationToken });
     }
 
+    /** Block an Agent action permanently. */
     async denyPendingAction(confirmationToken: string): Promise<{ status: 'denied' }> {
         return this.client.post('/api/v1/auth/ai/pending-actions/deny/', { token: confirmationToken });
     }
 
     // ─── Traceability and Budget ───
 
+    /** Start piping the `X-Prompt-Trace-ID` custom header outwards for tracing logs against LLM inputs. */
     setTraceId(traceId: string): void {
         this.traceId = traceId;
     }
 
+    /** Disable trace forwarding context. */
     clearTraceId(): void {
         this.traceId = null;
     }
 
+    /** 
+     * Report consumption costs associated with a backend invocation back to Tenxyte for strict circuit budgeting.
+     * @param tokenId - AgentToken evaluating ID.
+     * @param usage - Sunk token costs or explicit USD derivations.
+     */
     async reportUsage(tokenId: number, usage: {
         cost_usd: number;
         prompt_tokens: number;

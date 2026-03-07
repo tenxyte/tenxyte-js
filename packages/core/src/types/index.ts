@@ -4,6 +4,7 @@ export type GeneratedSchema = components['schemas'];
 
 /**
  * Core User Interface exposed by the SDK.
+ * Represents the authenticated entity bound to the active session.
  */
 export interface TenxyteUser {
     id: string; // UUID
@@ -22,7 +23,8 @@ export interface TenxyteUser {
 }
 
 /**
- * Standard SDK Token Pair (internal structure normalized by interceptors)
+ * Standard SDK Token Pair (internal structure normalized by interceptors).
+ * These are managed automatically if auto-refresh is enabled.
  */
 export interface TokenPair {
     access_token: string; // JWT Bearer
@@ -33,13 +35,13 @@ export interface TokenPair {
 }
 
 /**
- * Standardized API Error Response wrapper
+ * Standardized API Error Response wrapper thrown by network interceptors.
  */
 export interface TenxyteError {
     error: string; // Human message
     code: TenxyteErrorCode; // Machine identifier
     details?: Record<string, string[]> | string; // Per-field errors or free message
-    retry_after?: number; // Present on 429 and 423
+    retry_after?: number; // Present on HTTP 429 and 423
 }
 
 export type TenxyteErrorCode =
@@ -90,7 +92,7 @@ export type TenxyteErrorCode =
     | 'AIRS_DISABLED';
 
 /**
- * Organization Structure
+ * Organization Structure defining a B2B tenant or hierarchical unit.
  */
 export interface Organization {
     id: number;
@@ -105,8 +107,8 @@ export interface Organization {
     updated_at: string;
     parent: { id: number; name: string; slug: string } | null;
     children: Array<{ id: number; name: string; slug: string }>;
-    user_role: string | null; // Current user's role in this org
-    user_permissions: string[]; // Effective permissions in this org
+    user_role: string | null; // Current user's contextual role inside this exact org
+    user_permissions: string[]; // Effective permissions resolving downward in this org
 }
 
 /**

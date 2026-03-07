@@ -1,0 +1,39 @@
+name: Publish to NPM
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish_npm:
+    name: Publish Core SDK to NPM
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: ./packages/core
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install Root Dependencies
+        working-directory: .
+        run: npm install
+
+      - name: Install Package Dependencies
+        run: npm ci
+
+      - name: Build Project
+        run: npm run build
+
+      - name: Publish Package
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

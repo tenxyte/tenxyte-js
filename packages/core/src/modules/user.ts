@@ -20,10 +20,12 @@ export class UserModule {
 
     // --- Standard Profile Actions --- //
 
+    /** Retrieve your current comprehensive Profile metadata matching the active network bearer token. */
     async getProfile(): Promise<any> {
         return this.client.get('/api/v1/auth/me/');
     }
 
+    /** Modify your active profile core details or injected application metadata. */
     async updateProfile(data: UpdateProfileParams): Promise<any> {
         return this.client.patch('/api/v1/auth/me/', data);
     }
@@ -37,6 +39,11 @@ export class UserModule {
         return this.client.patch('/api/v1/auth/me/', formData);
     }
 
+    /**
+     * Trigger self-deletion of an entire account data boundary.
+     * @param password - Requires the active system password as destructive proof of intent.
+     * @param otpCode - (Optional) If an OTP was queried prior to attempting account deletion.
+     */
     async deleteAccount(password: string, otpCode?: string): Promise<void> {
         return this.client.post<void>('/api/v1/auth/request-account-deletion/', {
             password,
@@ -46,34 +53,42 @@ export class UserModule {
 
     // --- Admin Actions Mapping --- //
 
+    /** (Admin only) Lists users paginated matching criteria. */
     async listUsers(params?: Record<string, any>): Promise<any[]> {
         return this.client.get<any[]>('/api/v1/auth/admin/users/', { params });
     }
 
+    /** (Admin only) Gets deterministic data related to a remote unassociated user. */
     async getUser(userId: string): Promise<any> {
         return this.client.get(`/api/v1/auth/admin/users/${userId}/`);
     }
 
+    /** (Admin only) Modifies configuration/details or capacity bounds related to a remote unassociated user. */
     async adminUpdateUser(userId: string, data: AdminUpdateUserParams): Promise<any> {
         return this.client.patch(`/api/v1/auth/admin/users/${userId}/`, data);
     }
 
+    /** (Admin only) Force obliterate a User boundary. Can affect relational database stability if not bound carefully. */
     async adminDeleteUser(userId: string): Promise<void> {
         return this.client.delete<void>(`/api/v1/auth/admin/users/${userId}/`);
     }
 
+    /** (Admin only) Apply a permanent suspension / ban state globally on a user token footprint. */
     async banUser(userId: string, reason: string = ''): Promise<void> {
         return this.client.post<void>(`/api/v1/auth/admin/users/${userId}/ban/`, { reason });
     }
 
+    /** (Admin only) Recover a user footprint from a global ban state. */
     async unbanUser(userId: string): Promise<void> {
         return this.client.post<void>(`/api/v1/auth/admin/users/${userId}/unban/`);
     }
 
+    /** (Admin only) Apply a temporary lock bounding block on a user interaction footprint. */
     async lockUser(userId: string, durationMinutes: number = 30, reason: string = ''): Promise<void> {
         return this.client.post<void>(`/api/v1/auth/admin/users/${userId}/lock/`, { duration_minutes: durationMinutes, reason });
     }
 
+    /** (Admin only) Releases an arbitrary temporary system lock placed on a user bounds. */
     async unlockUser(userId: string): Promise<void> {
         return this.client.post<void>(`/api/v1/auth/admin/users/${userId}/unlock/`);
     }
