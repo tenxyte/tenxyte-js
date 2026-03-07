@@ -22,10 +22,8 @@ jobs:
         with:
           node-version: 24
           registry-url: 'https://registry.npmjs.org'
-
-      - name: Install Root Dependencies
-        working-directory: .
-        run: npm install
+          cache: 'npm'
+          cache-dependency-path: './packages/core/package-lock.json'
 
       - name: Install Package Dependencies
         run: npm ci

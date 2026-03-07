@@ -26,10 +26,7 @@ jobs:
         with:
           node-version: 24
           cache: 'npm'
-
-      - name: Install Root Dependencies
-        working-directory: .
-        run: npm install
+          cache-dependency-path: './packages/core/package-lock.json'
 
       - name: Install Package Dependencies
         run: npm ci
