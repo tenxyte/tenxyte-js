@@ -1,0 +1,50 @@
+{
+  "name": "@tenxyte/core",
+  "version": "0.1.0",
+  "description": "Core JavaScript SDK for Tenxyte",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "test": "vitest"
+  },
+  "keywords": [
+    "tenxyte",
+    "sdk",
+    "javascript",
+    "typescript",
+    "authentication",
+    "jwt",
+    "2fa",
+    "totp",
+    "rbac",
+    "otp",
+    "google-authenticator",
+    "role-based-access-control",
+    "organizations",
+    "multi-tenant",
+    "b2b",
+    "device-fingerprinting",
+    "audit-log",
+    "gdpr",
+    "magic-link",
+    "passkeys",
+    "webauthn",
+    "fido2",
+    "social-login",
+    "oauth2",
+    "breach-check",
+    "haveibeenpwned"
+  ],
+  "author": "Tenxyte Team",
+  "license": "MIT",
+  "type": "module",
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "vitest": "^1.0.0"
+  }
+}

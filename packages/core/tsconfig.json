@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "esModuleInterop": true,
+    "lib": [
+      "es2015"
+    ],
+    "newLine": "lf",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "outDir": "dist/",
+    "strict": true,
+    "target": "es5"
+  },
+  "include": [
+    "src/**/*.ts",
+    "typings/**/*.d.ts",
+    "node_modules/@*/types-*/*.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ],
+  "out": "dist/index.js",
+  "format": [
+    "cjs",
+    "esm"
+  ],
+  "dts": true
+}
