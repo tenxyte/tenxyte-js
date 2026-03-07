@@ -8,6 +8,9 @@ jobs:
   publish_npm:
     name: Publish Core SDK to NPM
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     
     defaults:
       run:
@@ -32,6 +35,4 @@ jobs:
         run: npm run build
 
       - name: Publish Package
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public --provenance
