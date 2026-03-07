@@ -1,29 +1,26 @@
 {
   "compilerOptions": {
-    "esModuleInterop": true,
-    "lib": [
-      "es2015"
-    ],
-    "newLine": "lf",
-    "module": "commonjs",
-    "moduleResolution": "node",
-    "outDir": "dist/",
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "strict": true,
-    "target": "es5"
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "src/*"
+      ]
+    }
   },
   "include": [
-    "src/**/*.ts",
-    "typings/**/*.d.ts",
-    "node_modules/@*/types-*/*.d.ts"
+    "src/**/*"
   ],
   "exclude": [
     "node_modules",
-    "dist"
-  ],
-  "out": "dist/index.js",
-  "format": [
-    "cjs",
-    "esm"
-  ],
-  "dts": true
+    "dist",
+    "**/*.test.ts"
+  ]
 }
