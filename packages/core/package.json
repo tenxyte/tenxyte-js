@@ -1,6 +1,6 @@
 {
   "name": "@tenxyte/core",
-  "version": "0.1.5",
+  "version": "0.9.0",
   "description": "Core JavaScript SDK for Tenxyte",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",

@@ -22,7 +22,9 @@ export class RbacModule {
     constructor(private client: TenxyteHttpClient) { }
 
     /**
-     * Cache a token to use for parameter-less synchronous checks.
+     * Cache a decoded JWT payload locally to perform parameter-less synchronous permission checks.
+     * Usually invoked automatically by the system upon login or token refresh.
+     * @param token - The raw JWT access token encoded string.
      */
     setToken(token: string | null) {
         this.cachedToken = token;
@@ -36,37 +38,59 @@ export class RbacModule {
 
     // --- Synchronous Checks --- //
 
+    /**
+     * Synchronously deeply inspects the cached (or provided) JWT to determine if the user has a specific Role.
+     * @param role - The exact code name of the Role.
+     * @param token - (Optional) Provide a specific token overriding the cached one.
+     */
     hasRole(role: string, token?: string): boolean {
         const decoded = this.getDecodedToken(token);
         if (!decoded?.roles) return false;
         return decoded.roles.includes(role);
     }
 
+    /**
+     * Evaluates if the active session holds AT LEAST ONE of the listed Roles.
+     * @param roles - An array of Role codes.
+     */
     hasAnyRole(roles: string[], token?: string): boolean {
         const decoded = this.getDecodedToken(token);
         if (!decoded?.roles) return false;
         return roles.some(r => decoded.roles!.includes(r));
     }
 
+    /**
+     * Evaluates if the active session holds ALL of the listed Roles concurrently.
+     * @param roles - An array of Role codes.
+     */
     hasAllRoles(roles: string[], token?: string): boolean {
         const decoded = this.getDecodedToken(token);
         if (!decoded?.roles) return false;
         return roles.every(r => decoded.roles!.includes(r));
     }
 
+    /**
+     * Synchronously deeply inspects the cached (or provided) JWT to determine if the user has a specific granular Permission.
+     * @param permission - The exact code name of the Permission (e.g., 'invoices.read').
+     */
     hasPermission(permission: string, token?: string): boolean {
         const decoded = this.getDecodedToken(token);
         if (!decoded?.permissions) return false;
-        // Check exact match or wildcard, assuming backend handles wildcard expansion in JWT
         return decoded.permissions.includes(permission);
     }
 
+    /**
+     * Evaluates if the active session holds AT LEAST ONE of the listed Permissions.
+     */
     hasAnyPermission(permissions: string[], token?: string): boolean {
         const decoded = this.getDecodedToken(token);
         if (!decoded?.permissions) return false;
         return permissions.some(p => decoded.permissions!.includes(p));
     }
 
+    /**
+     * Evaluates if the active session holds ALL of the listed Permissions concurrently.
+     */
     hasAllPermissions(permissions: string[], token?: string): boolean {
         const decoded = this.getDecodedToken(token);
         if (!decoded?.permissions) return false;
@@ -75,22 +99,27 @@ export class RbacModule {
 
     // --- Roles CRUD --- //
 
+    /** Fetch all application global Roles structure */
     async listRoles(): Promise<Role[]> {
         return this.client.get<Role[]>('/api/v1/auth/roles/');
     }
 
+    /** Create a new architectural Role inside Tenxyte */
     async createRole(data: { name: string; description?: string; permission_codes?: string[]; is_default?: boolean }): Promise<Role> {
         return this.client.post<Role>('/api/v1/auth/roles/', data);
     }
 
+    /** Get detailed metadata defining a single bounded Role */
     async getRole(roleId: string): Promise<Role> {
         return this.client.get<Role>(`/api/v1/auth/roles/${roleId}/`);
     }
 
+    /** Modify properties bounding a Role */
     async updateRole(roleId: string, data: { name?: string; description?: string; permission_codes?: string[]; is_default?: boolean }): Promise<Role> {
         return this.client.put<Role>(`/api/v1/auth/roles/${roleId}/`, data);
     }
 
+    /** Unbind and destruct a Role from the global Tenant. (Dangerous, implies cascading permission unbindings) */
     async deleteRole(roleId: string): Promise<void> {
         return this.client.delete<void>(`/api/v1/auth/roles/${roleId}/`);
     }
@@ -116,42 +145,60 @@ export class RbacModule {
 
     // --- Permissions CRUD --- //
 
+    /** Enumerates all available fine-grained Permissions inside this Tenant scope. */
     async listPermissions(): Promise<Permission[]> {
         return this.client.get<Permission[]>('/api/v1/auth/permissions/');
     }
 
+    /** Bootstraps a new granular Permission flag (e.g. `billing.refund`). */
     async createPermission(data: { code: string; name: string; description?: string; parent_code?: string }): Promise<Permission> {
         return this.client.post<Permission>('/api/v1/auth/permissions/', data);
     }
 
+    /** Retrieves an existing atomic Permission construct. */
     async getPermission(permissionId: string): Promise<Permission> {
         return this.client.get<Permission>(`/api/v1/auth/permissions/${permissionId}/`);
     }
 
+    /** Edits the human readable description or structural dependencies of a Permission. */
     async updatePermission(permissionId: string, data: { name?: string; description?: string }): Promise<Permission> {
         return this.client.put<Permission>(`/api/v1/auth/permissions/${permissionId}/`, data);
     }
 
+    /** Destroys an atomic Permission permanently. Any Roles referencing it will be stripped of this grant automatically. */
     async deletePermission(permissionId: string): Promise<void> {
         return this.client.delete<void>(`/api/v1/auth/permissions/${permissionId}/`);
     }
 
     // --- Direct Assignment (Users) --- //
 
+    /**
+     * Attach a given Role globally to a user entity.
+     * Use sparingly if B2B multi-tenancy contexts are preferred.
+     */
     async assignRoleToUser(userId: string, roleCode: string): Promise<void> {
         return this.client.post<void>(`/api/v1/auth/users/${userId}/roles/`, { role_code: roleCode });
     }
 
+    /**
+     * Unbind a global Role from a user entity.
+     */
     async removeRoleFromUser(userId: string, roleCode: string): Promise<void> {
         return this.client.delete<void>(`/api/v1/auth/users/${userId}/roles/`, {
             params: { role_code: roleCode }
         });
     }
 
+    /**
+     * Ad-Hoc directly attach specific granular Permissions to a single User, bypassing Role boundaries.
+     */
     async assignPermissionsToUser(userId: string, permissionCodes: string[]): Promise<void> {
         return this.client.post<void>(`/api/v1/auth/users/${userId}/permissions/`, { permission_codes: permissionCodes });
     }
 
+    /**
+     * Ad-Hoc strip direct granular Permissions bindings from a specific User.
+     */
     async removePermissionsFromUser(userId: string, permissionCodes: string[]): Promise<void> {
         return this.client.delete<void>(`/api/v1/auth/users/${userId}/permissions/`, {
             body: { permission_codes: permissionCodes }
