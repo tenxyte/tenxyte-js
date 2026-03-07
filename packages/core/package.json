@@ -1,15 +1,15 @@
 {
   "name": "@tenxyte/core",
-  "version": "0.1.0",
+  "version": "0.1.5",
   "description": "Core JavaScript SDK for Tenxyte",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "require": "./dist/index.cjs",
-      "types": "./dist/index.d.ts"
+      "require": "./dist/index.cjs"
     }
   },
   "publishConfig": {

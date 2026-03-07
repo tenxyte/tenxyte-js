@@ -61,16 +61,21 @@ export class TenxyteHttpClient {
             });
         }
 
-        let requestContext = {
+        let requestContext: any = {
             url: urlObj.toString(),
             ...config,
-            headers: { ...this.defaultHeaders, ...config.headers },
+            headers: { ...this.defaultHeaders, ...(config.headers || {}) } as Record<string, string>,
         };
 
-        // Replace the body if it's an object and Content-Type is JSON
-        if (requestContext.body && typeof requestContext.body === 'object') {
+        // Handle FormData implicitly for multipart requests
+        if (typeof FormData !== 'undefined' && requestContext.body instanceof FormData) {
+            const headers = requestContext.headers as Record<string, string>;
+            // Explicitly remove Content-Type so fetch can auto-assign the multipart boundary
+            delete headers['Content-Type'];
+            delete headers['content-type'];
+        } else if (requestContext.body && typeof requestContext.body === 'object') {
             const contentType = (requestContext.headers as Record<string, string>)['Content-Type'] || '';
-            if (contentType.includes('application/json')) {
+            if (contentType.toLowerCase().includes('application/json')) {
                 requestContext.body = JSON.stringify(requestContext.body);
             }
         }
@@ -83,11 +88,11 @@ export class TenxyteHttpClient {
         const { url, ...fetchConfig } = requestContext as any;
 
         try {
-            let response = await fetch(url, fetchConfig);
+            let response = await fetch(url, fetchConfig as RequestInit);
 
             // Run Response Interceptors (e.g., token refresh logic)
             for (const interceptor of this.responseInterceptors) {
-                response = await interceptor(response, { url, config: fetchConfig });
+                response = await interceptor(response, { url, config: fetchConfig as RequestConfig });
             }
 
             if (!response.ok) {
