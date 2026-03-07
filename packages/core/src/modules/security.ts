@@ -1,122 +1,240 @@
 import { TenxyteHttpClient } from '../http/client';
-import { TokenPair } from '../types';
-
-export interface OtpRequestParams {
-    email?: string;
-    phone_country_code?: string;
-    phone_number?: string;
-    type: 'email_verification' | 'phone_verification' | 'password_reset';
-}
-
-export interface VerifyOtpEmailParams {
-    email: string;
-    code: string;
-}
-
-export interface VerifyOtpPhoneParams {
-    phone_country_code: string;
-    phone_number: string;
-    code: string;
-}
-
-export interface Setup2FAResponse {
-    qr_code_url: string;
-    secret: string;
-    backup_codes: string[];
-}
-
-export interface WebAuthnRegisterBeginResponse {
-    publicKey: any; // CredentialCreationOptions
-}
-
-export interface WebAuthnAuthenticateBeginResponse {
-    publicKey: any; // CredentialRequestOptions
-}
+import { TenxyteUser, TokenPair } from '../types';
+import { base64urlToBuffer, bufferToBase64url } from '../utils/base64url';
 
 export class SecurityModule {
     constructor(private client: TenxyteHttpClient) { }
 
-    // --- OTP Verification --- //
-
-    async requestOtp(data: OtpRequestParams): Promise<void> {
-        return this.client.post<void>('/api/v1/auth/otp/request/', data);
-    }
-
-    async verifyOtpEmail(data: VerifyOtpEmailParams): Promise<void> {
-        return this.client.post<void>('/api/v1/auth/otp/verify/email/', data);
-    }
-
-    async verifyOtpPhone(data: VerifyOtpPhoneParams): Promise<void> {
-        return this.client.post<void>('/api/v1/auth/otp/verify/phone/', data);
-    }
-
-    // --- TOTP / 2FA --- //
+    // ─── 2FA (TOTP) Management ───
 
     async get2FAStatus(): Promise<{ is_enabled: boolean; backup_codes_remaining: number }> {
         return this.client.get('/api/v1/auth/2fa/status/');
     }
 
-    async setup2FA(): Promise<Setup2FAResponse> {
-        return this.client.post<Setup2FAResponse>('/api/v1/auth/2fa/setup/');
+    async setup2FA(): Promise<{
+        message: string;
+        secret: string;
+        manual_entry_key: string;
+        qr_code: string;
+        provisioning_uri: string;
+        backup_codes: string[];
+        warning: string;
+    }> {
+        return this.client.post('/api/v1/auth/2fa/setup/');
     }
 
-    async confirm2FA(totp_code: string): Promise<void> {
-        return this.client.post<void>('/api/v1/auth/2fa/confirm/', { totp_code });
+    async confirm2FA(totpCode: string): Promise<{
+        message: string;
+        is_enabled: boolean;
+        enabled_at: string;
+    }> {
+        return this.client.post('/api/v1/auth/2fa/confirm/', { totp_code: totpCode });
     }
 
-    async disable2FA(totp_code: string, password?: string): Promise<void> {
-        return this.client.post<void>('/api/v1/auth/2fa/disable/', { totp_code, password });
+    async disable2FA(totpCode: string, password?: string): Promise<{
+        message: string;
+        is_enabled: boolean;
+        disabled_at: string;
+        backup_codes_invalidated: boolean;
+    }> {
+        return this.client.post('/api/v1/auth/2fa/disable/', { totp_code: totpCode, password });
     }
 
-    async regenerateBackupCodes(totp_code: string): Promise<{ backup_codes: string[] }> {
-        return this.client.post('/api/v1/auth/2fa/backup-codes/', { totp_code });
+    async regenerateBackupCodes(totpCode: string): Promise<{
+        message: string;
+        backup_codes: string[];
+        codes_count: number;
+        generated_at?: string;
+        warning: string;
+    }> {
+        return this.client.post('/api/v1/auth/2fa/backup-codes/', { totp_code: totpCode });
     }
 
-    // --- Password Management --- //
+    // ─── Verification OTP (Email / Phone) ───
 
-    async resetPasswordRequest(data: { email?: string; phone_country_code?: string; phone_number?: string }): Promise<void> {
-        return this.client.post<void>('/api/v1/auth/password/reset/request/', data);
+    async requestOtp(type: 'email' | 'phone'): Promise<{
+        message: string;
+        otp_id: number;
+        expires_at: string;
+        channel: 'email' | 'phone';
+        masked_recipient: string;
+    }> {
+        return this.client.post('/api/v1/auth/otp/request/', { type: type === 'email' ? 'email_verification' : 'phone_verification' });
     }
 
-    async resetPasswordConfirm(data: { otp_code: string; new_password: string; email?: string; phone_country_code?: string; phone_number?: string }): Promise<void> {
-        return this.client.post<void>('/api/v1/auth/password/reset/confirm/', data);
+    async verifyOtpEmail(code: string): Promise<{
+        message: string;
+        email_verified: boolean;
+        verified_at: string;
+    }> {
+        return this.client.post('/api/v1/auth/otp/verify/email/', { code });
     }
 
-    async changePassword(data: { current_password: string; new_password: string }): Promise<void> {
-        return this.client.post<void>('/api/v1/auth/password/change/', data);
+    async verifyOtpPhone(code: string): Promise<{
+        message: string;
+        phone_verified: boolean;
+        verified_at: string;
+        phone_number: string;
+    }> {
+        return this.client.post('/api/v1/auth/otp/verify/phone/', { code });
     }
 
-    async checkPasswordStrength(data: { password: string; email?: string }): Promise<{ score: number; feedback: string[] }> {
-        return this.client.post('/api/v1/auth/password/strength/', data);
+    // ─── Password Sub-module ───
+
+    async resetPasswordRequest(target: { email: string } | { phone_country_code: string; phone_number: string }): Promise<{ message: string }> {
+        return this.client.post('/api/v1/auth/password/reset/request/', target);
     }
 
-    async getPasswordRequirements(): Promise<any> {
+    async resetPasswordConfirm(data: {
+        email?: string;
+        phone_country_code?: string;
+        phone_number?: string;
+        otp_code: string;
+        new_password: string;
+        confirm_password: string;
+    }): Promise<{ message: string }> {
+        return this.client.post('/api/v1/auth/password/reset/confirm/', data);
+    }
+
+    async changePassword(currentPassword: string, newPassword: string): Promise<{ message: string }> {
+        return this.client.post('/api/v1/auth/password/change/', {
+            current_password: currentPassword,
+            new_password: newPassword,
+        });
+    }
+
+    async checkPasswordStrength(password: string, email?: string): Promise<{
+        score: number;
+        strength: string;
+        is_valid: boolean;
+        errors: string[];
+        requirements: {
+            min_length: number;
+            require_lowercase: boolean;
+            require_uppercase: boolean;
+            require_numbers: boolean;
+            require_special: boolean;
+        };
+    }> {
+        return this.client.post('/api/v1/auth/password/strength/', { password, email });
+    }
+
+    async getPasswordRequirements(): Promise<{
+        requirements: Record<string, boolean | number>;
+        min_length: number;
+        max_length: number;
+    }> {
         return this.client.get('/api/v1/auth/password/requirements/');
     }
 
-    // --- WebAuthn / Passkeys --- //
+    // ─── WebAuthn / Passkeys (FIDO2) ───
 
-    async registerWebAuthnBegin(): Promise<WebAuthnRegisterBeginResponse> {
-        return this.client.post<WebAuthnRegisterBeginResponse>('/api/v1/auth/webauthn/register/begin/');
+    async registerWebAuthn(deviceName?: string): Promise<{
+        message: string;
+        credential: {
+            id: number;
+            device_name: string;
+            created_at: string;
+        };
+    }> {
+        // 1. Begin registration
+        const optionsResponse = await this.client.post<any>('/api/v1/auth/webauthn/register/begin/');
+
+        // 2. Map options for the browser
+        const publicKeyOpts = optionsResponse.publicKey;
+        publicKeyOpts.challenge = base64urlToBuffer(publicKeyOpts.challenge);
+        publicKeyOpts.user.id = base64urlToBuffer(publicKeyOpts.user.id);
+        if (publicKeyOpts.excludeCredentials) {
+            publicKeyOpts.excludeCredentials.forEach((cred: any) => {
+                cred.id = base64urlToBuffer(cred.id);
+            });
+        }
+
+        // 3. Request credential creation from the Authenticator
+        const cred = await navigator.credentials.create({ publicKey: publicKeyOpts }) as PublicKeyCredential;
+        if (!cred) {
+            throw new Error('WebAuthn registration was aborted or failed.');
+        }
+
+        const response = cred.response as AuthenticatorAttestationResponse;
+
+        // 4. Complete registration on the backend
+        const completionPayload = {
+            device_name: deviceName,
+            credential: {
+                id: cred.id,
+                type: cred.type,
+                rawId: bufferToBase64url(cred.rawId),
+                response: {
+                    attestationObject: bufferToBase64url(response.attestationObject),
+                    clientDataJSON: bufferToBase64url(response.clientDataJSON),
+                },
+            },
+        };
+
+        return this.client.post('/api/v1/auth/webauthn/register/complete/', completionPayload);
     }
 
-    async registerWebAuthnComplete(data: any): Promise<void> {
-        return this.client.post<void>('/api/v1/auth/webauthn/register/complete/', data);
+    async authenticateWebAuthn(email?: string): Promise<{
+        access: string;
+        refresh: string;
+        user: TenxyteUser;
+        message: string;
+        credential_used: string;
+    }> {
+        // 1. Begin authentication
+        const optionsResponse = await this.client.post<any>('/api/v1/auth/webauthn/authenticate/begin/', email ? { email } : {});
+
+        // 2. Map options for the browser
+        const publicKeyOpts = optionsResponse.publicKey;
+        publicKeyOpts.challenge = base64urlToBuffer(publicKeyOpts.challenge);
+        if (publicKeyOpts.allowCredentials) {
+            publicKeyOpts.allowCredentials.forEach((cred: any) => {
+                cred.id = base64urlToBuffer(cred.id);
+            });
+        }
+
+        // 3. Request assertion from the Authenticator
+        const cred = await navigator.credentials.get({ publicKey: publicKeyOpts }) as PublicKeyCredential;
+        if (!cred) {
+            throw new Error('WebAuthn authentication was aborted or failed.');
+        }
+
+        const response = cred.response as AuthenticatorAssertionResponse;
+
+        // 4. Complete authentication on the backend
+        const completionPayload = {
+            credential: {
+                id: cred.id,
+                type: cred.type,
+                rawId: bufferToBase64url(cred.rawId),
+                response: {
+                    authenticatorData: bufferToBase64url(response.authenticatorData),
+                    clientDataJSON: bufferToBase64url(response.clientDataJSON),
+                    signature: bufferToBase64url(response.signature),
+                    userHandle: response.userHandle ? bufferToBase64url(response.userHandle) : null,
+                },
+            },
+        };
+
+        return this.client.post('/api/v1/auth/webauthn/authenticate/complete/', completionPayload);
     }
 
-    async authenticateWebAuthnBegin(data?: { email?: string }): Promise<WebAuthnAuthenticateBeginResponse> {
-        return this.client.post<WebAuthnAuthenticateBeginResponse>('/api/v1/auth/webauthn/authenticate/begin/', data || {});
+    async listWebAuthnCredentials(): Promise<{
+        credentials: Array<{
+            id: number;
+            device_name: string;
+            created_at: string;
+            last_used_at: string | null;
+            authenticator_type: string;
+            is_resident_key: boolean;
+        }>;
+        count: number;
+    }> {
+        return this.client.get('/api/v1/auth/webauthn/credentials/');
     }
 
-    async authenticateWebAuthnComplete(data: any): Promise<TokenPair> {
-        return this.client.post<TokenPair>('/api/v1/auth/webauthn/authenticate/complete/', data);
-    }
-
-    async listWebAuthnCredentials(): Promise<any[]> {
-        return this.client.get<any[]>('/api/v1/auth/webauthn/credentials/');
-    }
-
-    async deleteWebAuthnCredential(credentialId: string): Promise<void> {
-        return this.client.delete<void>(`/api/v1/auth/webauthn/credentials/${credentialId}/`);
+    async deleteWebAuthnCredential(credentialId: number): Promise<void> {
+        return this.client.delete(`/api/v1/auth/webauthn/credentials/${credentialId}/`);
     }
 }

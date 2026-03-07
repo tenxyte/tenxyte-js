@@ -16,11 +16,10 @@ describe('SecurityModule', () => {
 
     it('requestOtp should POST to /api/v1/auth/otp/request/', async () => {
         vi.mocked(client.request).mockResolvedValueOnce(undefined);
-        const data = { email: 'test@example.com', type: 'email_verification' as const };
-        await security.requestOtp(data);
+        await security.requestOtp('email');
         expect(client.request).toHaveBeenCalledWith('/api/v1/auth/otp/request/', {
             method: 'POST',
-            body: data,
+            body: { type: 'email_verification' },
         });
     });
 
@@ -54,21 +53,32 @@ describe('SecurityModule', () => {
         });
     });
 
-    it('authenticateWebAuthnBegin should POST to /api/v1/auth/webauthn/authenticate/begin/', async () => {
+    it('authenticateWebAuthn should POST to /api/v1/auth/webauthn/authenticate/begin/', async () => {
         const mockResponse = { publicKey: {} };
         vi.mocked(client.request).mockResolvedValueOnce(mockResponse);
-        const result = await security.authenticateWebAuthnBegin({ email: 'user@example.com' });
+        // We mock navigator to stop the promise from throwing regarding missing credentials API
+        vi.stubGlobal('navigator', {
+            credentials: {
+                get: vi.fn(),
+            }
+        });
+
+        try {
+            await security.authenticateWebAuthn('user@example.com');
+        } catch (e) { /* expected to throw because navigator mock returns undefined */ }
+
         expect(client.request).toHaveBeenCalledWith('/api/v1/auth/webauthn/authenticate/begin/', {
             method: 'POST',
             body: { email: 'user@example.com' },
         });
-        expect(result).toEqual(mockResponse);
+
+        vi.unstubAllGlobals();
     });
 
     it('deleteWebAuthnCredential should DELETE /api/v1/auth/webauthn/credentials/{credentialId}/', async () => {
         vi.mocked(client.request).mockResolvedValueOnce(undefined);
-        await security.deleteWebAuthnCredential('cred_123');
-        expect(client.request).toHaveBeenCalledWith('/api/v1/auth/webauthn/credentials/cred_123/', {
+        await security.deleteWebAuthnCredential(123);
+        expect(client.request).toHaveBeenCalledWith('/api/v1/auth/webauthn/credentials/123/', {
             method: 'DELETE',
         });
     });
