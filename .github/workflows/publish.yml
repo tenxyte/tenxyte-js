@@ -13,6 +13,8 @@ jobs:
   publish:
     name: Publish Core SDK to NPM
     runs-on: ubuntu-latest
+    environment:
+      name: npm
     
     defaults:
       run:
@@ -38,5 +40,3 @@ jobs:
 
       - name: Publish Package
         run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
