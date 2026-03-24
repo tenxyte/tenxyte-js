@@ -110,10 +110,18 @@ export class TenxyteClient {
         }
 
         this.rbac = new RbacModule(this.http);
-        this.auth = new AuthModule(this.http, this.storage, (accessToken, refreshToken) => {
-            this.rbac.setToken(accessToken);
-            this.emit('token:stored', { accessToken, refreshToken });
-        });
+        this.auth = new AuthModule(
+            this.http,
+            this.storage,
+            (accessToken, refreshToken) => {
+                this.rbac.setToken(accessToken);
+                this.emit('token:stored', { accessToken, refreshToken });
+            },
+            () => {
+                this.rbac.setToken(null);
+                this.emit('session:expired', undefined as void);
+            },
+        );
         this.security = new SecurityModule(this.http);
         this.user = new UserModule(this.http);
         this.b2b = new B2bModule(this.http);

@@ -27,7 +27,16 @@ export class AuthModule {
         private client: TenxyteHttpClient,
         private storage?: TenxyteStorage,
         private onTokens?: (accessToken: string, refreshToken?: string) => void,
+        private onLogout?: () => void,
     ) { }
+
+    private async clearTokens(): Promise<void> {
+        if (this.storage) {
+            await this.storage.removeItem('tx_access');
+            await this.storage.removeItem('tx_refresh');
+            this.onLogout?.();
+        }
+    }
 
     private async persistTokens(tokens: TokenPair): Promise<TokenPair> {
         if (this.storage) {
@@ -84,7 +93,8 @@ export class AuthModule {
      * @param refreshToken - The refresh token to revoke.
      */
     async logout(refreshToken: string): Promise<void> {
-        return this.client.post<void>('/api/v1/auth/logout/', { refresh_token: refreshToken });
+        await this.client.post<void>('/api/v1/auth/logout/', { refresh_token: refreshToken });
+        await this.clearTokens();
     }
 
     /**
@@ -92,7 +102,8 @@ export class AuthModule {
      * Revokes all refresh tokens currently assigned to the user.
      */
     async logoutAll(): Promise<void> {
-        return this.client.post<void>('/api/v1/auth/logout/all/');
+        await this.client.post<void>('/api/v1/auth/logout/all/');
+        await this.clearTokens();
     }
 
     /**
