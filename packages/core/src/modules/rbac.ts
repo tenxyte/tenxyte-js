@@ -173,6 +173,22 @@ export class RbacModule {
     // --- Direct Assignment (Users) --- //
 
     /**
+     * Retrieve all roles assigned to a specific user.
+     * @param userId - The target user ID.
+     */
+    async getUserRoles(userId: string): Promise<Record<string, unknown>> {
+        return this.client.get<Record<string, unknown>>(`/api/v1/auth/users/${userId}/roles/`);
+    }
+
+    /**
+     * Retrieve all permissions directly assigned to a specific user (excluding role-based permissions).
+     * @param userId - The target user ID.
+     */
+    async getUserPermissions(userId: string): Promise<Record<string, unknown>> {
+        return this.client.get<Record<string, unknown>>(`/api/v1/auth/users/${userId}/permissions/`);
+    }
+
+    /**
      * Attach a given Role globally to a user entity.
      * Use sparingly if B2B multi-tenancy contexts are preferred.
      */

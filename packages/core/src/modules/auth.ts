@@ -14,6 +14,8 @@ export type RegisterRequest = any;
 
 export interface MagicLinkRequest {
     email: string;
+    /** URL used to build the verification link (required). */
+    validation_url: string;
 }
 
 export interface SocialLoginRequest {
@@ -104,6 +106,17 @@ export class AuthModule {
     async logoutAll(): Promise<void> {
         await this.client.post<void>('/api/v1/auth/logout/all/');
         await this.clearTokens();
+    }
+
+    /**
+     * Manually refresh the access token using a valid refresh token.
+     * The refresh token is automatically rotated for improved security.
+     * @param refreshToken - The current refresh token.
+     * @returns A new token pair (access + rotated refresh).
+     */
+    async refreshToken(refreshToken: string): Promise<TokenPair> {
+        const tokens = await this.client.post<TokenPair>('/api/v1/auth/refresh/', { refresh_token: refreshToken });
+        return this.persistTokens(tokens);
     }
 
     /**

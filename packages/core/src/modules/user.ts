@@ -52,6 +52,14 @@ export class UserModule {
         });
     }
 
+    /**
+     * Retrieve the roles and permissions of the currently authenticated user.
+     * @returns An object containing `roles[]` and `permissions[]`.
+     */
+    async getMyRoles(): Promise<{ roles: any[]; permissions: any[]; [key: string]: unknown }> {
+        return this.client.get('/api/v1/auth/me/roles/');
+    }
+
     // --- Admin Actions Mapping --- //
 
     /** (Admin only) Lists users paginated matching criteria. */
