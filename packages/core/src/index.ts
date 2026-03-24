@@ -9,6 +9,7 @@ export * from './modules/user';
 export * from './modules/b2b';
 export * from './modules/ai';
 export * from './modules/applications';
+export * from './modules/admin';
 export * from './storage';
 export * from './utils/events';
 export * from './utils/jwt';
