@@ -64,6 +64,12 @@ export type SecurityStats = Record<string, unknown>;
  */
 export type GdprStats = Record<string, unknown>;
 
+/**
+ * Organization statistics returned by `getOrganizationStats()`.
+ * Organizations, members, roles, top organizations.
+ */
+export type OrgStats = Record<string, unknown>;
+
 // ─── Module ───
 
 export class DashboardModule {
@@ -104,5 +110,13 @@ export class DashboardModule {
      */
     async getGdprStats(): Promise<GdprStats> {
         return this.client.get<GdprStats>('/api/v1/auth/dashboard/gdpr/');
+    }
+
+    /**
+     * Get organization-specific statistics.
+     * Includes organizations, members, roles, and top organizations.
+     */
+    async getOrganizationStats(): Promise<OrgStats> {
+        return this.client.get<OrgStats>('/api/v1/auth/dashboard/organizations/');
     }
 }
