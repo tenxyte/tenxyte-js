@@ -1,4 +1,5 @@
 import type { TenxyteStorage } from './storage';
+import { MemoryStorage } from './storage';
 
 /**
  * Log level controlling the verbosity of the SDK internal logger.
@@ -102,4 +103,53 @@ export interface TenxyteClientConfig {
      * is provided. Defaults to 'silent'.
      */
     logLevel?: LogLevel;
+}
+
+/**
+ * Fully resolved configuration where every optional field has been
+ * filled with its default value. This is the shape used internally
+ * by TenxyteClient after calling {@link resolveConfig}.
+ */
+export interface ResolvedTenxyteConfig {
+    baseUrl: string;
+    headers: Record<string, string>;
+    storage: TenxyteStorage;
+    autoRefresh: boolean;
+    autoDeviceInfo: boolean;
+    timeoutMs: number | undefined;
+    onSessionExpired: (() => void) | undefined;
+    logger: TenxyteLogger;
+    logLevel: LogLevel;
+}
+
+/** Silent no-op logger used when the consumer does not provide one. */
+export const NOOP_LOGGER: TenxyteLogger = {
+    debug() {},
+    warn() {},
+    error() {},
+};
+
+/**
+ * Merges user-provided configuration with sensible defaults.
+ *
+ * Default values:
+ * - storage: new MemoryStorage()
+ * - autoRefresh: true
+ * - autoDeviceInfo: true
+ * - headers: {}
+ * - logLevel: 'silent'
+ * - logger: NOOP_LOGGER
+ */
+export function resolveConfig(config: TenxyteClientConfig): ResolvedTenxyteConfig {
+    return {
+        baseUrl: config.baseUrl,
+        headers: config.headers ?? {},
+        storage: config.storage ?? new MemoryStorage(),
+        autoRefresh: config.autoRefresh ?? true,
+        autoDeviceInfo: config.autoDeviceInfo ?? true,
+        timeoutMs: config.timeoutMs,
+        onSessionExpired: config.onSessionExpired,
+        logger: config.logger ?? NOOP_LOGGER,
+        logLevel: config.logLevel ?? 'silent',
+    };
 }
