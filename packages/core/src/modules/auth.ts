@@ -10,7 +10,24 @@ export interface LoginPhoneOptions {
     totp_code?: string;
 }
 
-export type RegisterRequest = any;
+export interface RegisterRequest {
+    /** Email address (required unless phone-based registration). */
+    email?: string | null;
+    /** International phone country code (e.g. "+33"). */
+    phone_country_code?: string | null;
+    /** Phone number without country code. */
+    phone_number?: string | null;
+    /** Account password. */
+    password: string;
+    /** User's first name. */
+    first_name?: string;
+    /** User's last name. */
+    last_name?: string;
+    /** Username (if enabled by the backend). */
+    username?: string;
+    /** If true, the user is logged in immediately after registration (JWT tokens returned). */
+    login?: boolean;
+}
 
 export interface MagicLinkRequest {
     email: string;
@@ -22,6 +39,24 @@ export interface SocialLoginRequest {
     access_token?: string;
     authorization_code?: string;
     id_token?: string;
+}
+
+/** Response from the registration endpoint (may include tokens if `login: true`). */
+export interface RegisterResponse {
+    message?: string;
+    user_id?: string;
+    access_token?: string;
+    refresh_token?: string;
+    token_type?: string;
+    expires_in?: number;
+}
+
+/** Response from the magic link request endpoint. */
+export interface MagicLinkResponse {
+    message?: string;
+    expires_in_minutes?: number;
+    /** Masked email for security. */
+    sent_to?: string;
 }
 
 export class AuthModule {
@@ -81,8 +116,8 @@ export class AuthModule {
      * @param data - The registration details (email, password, etc.).
      * @returns The registered user data or a confirmation message.
      */
-    async register(data: RegisterRequest): Promise<any> {
-        const result = await this.client.post<any>('/api/v1/auth/register/', data);
+    async register(data: RegisterRequest): Promise<RegisterResponse> {
+        const result = await this.client.post<RegisterResponse>('/api/v1/auth/register/', data);
         if (result?.access_token) {
             await this.persistTokens(result as TokenPair);
         }
@@ -123,8 +158,8 @@ export class AuthModule {
      * Request a Magic Link for passwordless sign-in.
      * @param data - The email to send the logic link to.
      */
-    async requestMagicLink(data: MagicLinkRequest): Promise<void> {
-        return this.client.post<void>('/api/v1/auth/magic-link/request/', data);
+    async requestMagicLink(data: MagicLinkRequest): Promise<MagicLinkResponse> {
+        return this.client.post<MagicLinkResponse>('/api/v1/auth/magic-link/request/', data);
     }
 
     /**

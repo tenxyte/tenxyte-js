@@ -1,11 +1,14 @@
 import { TenxyteHttpClient } from '../http/client';
 import { AgentTokenSummary, AgentPendingAction } from '../types';
+import type { TenxyteLogger } from '../config';
 
 export class AiModule {
     private agentToken: string | null = null;
     private traceId: string | null = null;
+    private logger?: TenxyteLogger;
 
-    constructor(private client: TenxyteHttpClient) {
+    constructor(private client: TenxyteHttpClient, logger?: TenxyteLogger) {
+        this.logger = logger;
         // Register an interceptor to auto-inject AgentBearer and Trace ID
         this.client.addRequestInterceptor((config) => {
             const headers: Record<string, string> = { ...config.headers };
@@ -35,7 +38,7 @@ export class AiModule {
                 try {
                     const data = await cloned.json();
                     // Assuming TenxyteClient will fire 'agent:awaiting_approval' based on this later
-                    console.debug('[Tenxyte AI] Received 202 Awaiting Approval:', data);
+                    this.logger?.debug('[Tenxyte AI] Received 202 Awaiting Approval:', data);
                 } catch {
                     // Ignore parsing errors
                 }
@@ -44,9 +47,9 @@ export class AiModule {
                 try {
                     const data = await cloned.json();
                     if (data.code === 'BUDGET_EXCEEDED') {
-                        console.warn('[Tenxyte AI] Network responded with Budget Exceeded for Agent.');
+                        this.logger?.warn('[Tenxyte AI] Network responded with Budget Exceeded for Agent.');
                     } else if (data.status === 'suspended') {
-                        console.warn('[Tenxyte AI] Circuit breaker open for Agent.');
+                        this.logger?.warn('[Tenxyte AI] Circuit breaker open for Agent.');
                     }
                 } catch {
                     // Ignore parsing errors

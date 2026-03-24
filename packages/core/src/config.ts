@@ -1,6 +1,7 @@
 import type { TenxyteStorage } from './storage';
 import { MemoryStorage } from './storage';
 import type { CustomDeviceInfo } from './utils/device_info';
+import type { RetryConfig } from './http/interceptors';
 
 /**
  * Semantic version of the SDK, kept in sync with package.json.
@@ -118,6 +119,13 @@ export interface TenxyteClientConfig {
      * `autoDeviceInfo` is `true`.
      */
     deviceInfoOverride?: CustomDeviceInfo;
+
+    /**
+     * When provided, the SDK attaches a response interceptor that
+     * automatically retries failed requests (429 / 5xx / network errors)
+     * with exponential backoff. Pass `{}` for sensible defaults.
+     */
+    retryConfig?: RetryConfig;
 }
 
 /**
@@ -136,6 +144,7 @@ export interface ResolvedTenxyteConfig {
     logger: TenxyteLogger;
     logLevel: LogLevel;
     deviceInfoOverride: CustomDeviceInfo | undefined;
+    retryConfig: RetryConfig | undefined;
 }
 
 /** Silent no-op logger used when the consumer does not provide one. */
@@ -168,5 +177,6 @@ export function resolveConfig(config: TenxyteClientConfig): ResolvedTenxyteConfi
         logger: config.logger ?? NOOP_LOGGER,
         logLevel: config.logLevel ?? 'silent',
         deviceInfoOverride: config.deviceInfoOverride,
+        retryConfig: config.retryConfig,
     };
 }

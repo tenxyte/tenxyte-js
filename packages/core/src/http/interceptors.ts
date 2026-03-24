@@ -1,6 +1,7 @@
 import type { TenxyteStorage } from '../storage';
 import type { RequestConfig, TenxyteHttpClient } from './client';
 import { buildDeviceInfo, type CustomDeviceInfo } from '../utils/device_info';
+import type { TenxyteLogger } from '../config';
 
 export interface TenxyteContext {
     activeOrgSlug: string | null;
@@ -125,6 +126,89 @@ const DEVICE_INFO_ENDPOINTS = [
     '/register/',
     '/social/',
 ];
+
+// ─── Retry Interceptor ───
+
+/** Configuration for the automatic retry middleware. */
+export interface RetryConfig {
+    /** Maximum number of retries per request. Defaults to 3. */
+    maxRetries?: number;
+    /** Retry on HTTP 429 (Too Many Requests). Defaults to true. */
+    retryOn429?: boolean;
+    /** Retry on network errors (fetch failures, timeouts). Defaults to true. */
+    retryOnNetworkError?: boolean;
+    /** Base delay in ms for exponential backoff. Defaults to 1000. */
+    baseDelayMs?: number;
+}
+
+const DEFAULT_RETRY: Required<RetryConfig> = {
+    maxRetries: 3,
+    retryOn429: true,
+    retryOnNetworkError: true,
+    baseDelayMs: 1000,
+};
+
+function sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Creates a response interceptor that retries failed requests with exponential backoff.
+ * Respects the `Retry-After` header when present on 429 responses.
+ */
+export function createRetryInterceptor(config: RetryConfig = {}, logger?: TenxyteLogger) {
+    const opts = { ...DEFAULT_RETRY, ...config };
+
+    return async (response: Response, request: { url: string; config: RequestConfig }): Promise<Response> => {
+        const shouldRetry429 = opts.retryOn429 && response.status === 429;
+        const shouldRetryServer = response.status >= 500;
+
+        if (!shouldRetry429 && !shouldRetryServer) {
+            return response;
+        }
+
+        let lastResponse = response;
+
+        for (let attempt = 1; attempt <= opts.maxRetries; attempt++) {
+            // Determine delay: prefer Retry-After header, fall back to exponential backoff
+            let delayMs = opts.baseDelayMs * Math.pow(2, attempt - 1);
+            const retryAfter = lastResponse.headers.get('Retry-After');
+            if (retryAfter) {
+                const parsed = Number(retryAfter);
+                if (!isNaN(parsed)) {
+                    delayMs = parsed * 1000;
+                }
+            }
+
+            logger?.debug(`[Tenxyte Retry] Attempt ${attempt}/${opts.maxRetries} after ${delayMs}ms for ${request.url}`);
+            await sleep(delayMs);
+
+            try {
+                const retryResponse = await fetch(request.url, request.config as RequestInit);
+
+                if (retryResponse.status === 429 && opts.retryOn429 && attempt < opts.maxRetries) {
+                    lastResponse = retryResponse;
+                    continue;
+                }
+                if (retryResponse.status >= 500 && attempt < opts.maxRetries) {
+                    lastResponse = retryResponse;
+                    continue;
+                }
+
+                return retryResponse;
+            } catch (err) {
+                if (!opts.retryOnNetworkError || attempt >= opts.maxRetries) {
+                    throw err;
+                }
+                logger?.warn(`[Tenxyte Retry] Network error on attempt ${attempt}/${opts.maxRetries}`, err);
+            }
+        }
+
+        return lastResponse;
+    };
+}
+
+// ─── Device Info Interceptor ───
 
 export function createDeviceInfoInterceptor(override?: CustomDeviceInfo) {
     const fingerprint = buildDeviceInfo(override);

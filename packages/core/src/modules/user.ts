@@ -1,4 +1,5 @@
 import { TenxyteHttpClient } from '../http/client';
+import type { TenxyteUser, PaginatedResponse } from '../types';
 
 export interface UpdateProfileParams {
     first_name?: string;
@@ -21,12 +22,12 @@ export class UserModule {
     // --- Standard Profile Actions --- //
 
     /** Retrieve your current comprehensive Profile metadata matching the active network bearer token. */
-    async getProfile(): Promise<any> {
+    async getProfile(): Promise<TenxyteUser> {
         return this.client.get('/api/v1/auth/me/');
     }
 
     /** Modify your active profile core details or injected application metadata. */
-    async updateProfile(data: UpdateProfileParams): Promise<any> {
+    async updateProfile(data: UpdateProfileParams): Promise<TenxyteUser> {
         return this.client.patch('/api/v1/auth/me/', data);
     }
 
@@ -35,7 +36,7 @@ export class UserModule {
      * Ensure the environment supports FormData (browser or Node.js v18+).
      * @param formData The FormData object containing the 'avatar' field.
      */
-    async uploadAvatar(formData: FormData): Promise<any> {
+    async uploadAvatar(formData: FormData): Promise<TenxyteUser> {
         return this.client.patch('/api/v1/auth/me/', formData);
     }
 
@@ -63,17 +64,17 @@ export class UserModule {
     // --- Admin Actions Mapping --- //
 
     /** (Admin only) Lists users paginated matching criteria. */
-    async listUsers(params?: Record<string, any>): Promise<any[]> {
-        return this.client.get<any[]>('/api/v1/auth/admin/users/', { params });
+    async listUsers(params?: Record<string, any>): Promise<PaginatedResponse<TenxyteUser>> {
+        return this.client.get<PaginatedResponse<TenxyteUser>>('/api/v1/auth/admin/users/', { params });
     }
 
     /** (Admin only) Gets deterministic data related to a remote unassociated user. */
-    async getUser(userId: string): Promise<any> {
+    async getUser(userId: string): Promise<TenxyteUser> {
         return this.client.get(`/api/v1/auth/admin/users/${userId}/`);
     }
 
     /** (Admin only) Modifies configuration/details or capacity bounds related to a remote unassociated user. */
-    async adminUpdateUser(userId: string, data: AdminUpdateUserParams): Promise<any> {
+    async adminUpdateUser(userId: string, data: AdminUpdateUserParams): Promise<TenxyteUser> {
         return this.client.patch(`/api/v1/auth/admin/users/${userId}/`, data);
     }
 

@@ -135,12 +135,7 @@ export class RbacModule {
     }
 
     async removePermissionsFromRole(roleId: string, permission_codes: string[]): Promise<void> {
-        return this.client.delete<void>(`/api/v1/auth/roles/${roleId}/permissions/`, {
-            // Note: DELETE request with body is supported via our fetch wrapper if enabled,
-            // or we might need to rely on query strings. The schema specifies body or query.
-            // Let's pass it in body via a custom config or URL params.
-            body: { permission_codes }
-        } as any);
+        return this.client.delete<void>(`/api/v1/auth/roles/${roleId}/permissions/`, { permission_codes });
     }
 
     // --- Permissions CRUD --- //
@@ -200,7 +195,7 @@ export class RbacModule {
      * Unbind a global Role from a user entity.
      */
     async removeRoleFromUser(userId: string, roleCode: string): Promise<void> {
-        return this.client.delete<void>(`/api/v1/auth/users/${userId}/roles/`, {
+        return this.client.delete<void>(`/api/v1/auth/users/${userId}/roles/`, undefined, {
             params: { role_code: roleCode }
         });
     }
@@ -216,8 +211,6 @@ export class RbacModule {
      * Ad-Hoc strip direct granular Permissions bindings from a specific User.
      */
     async removePermissionsFromUser(userId: string, permissionCodes: string[]): Promise<void> {
-        return this.client.delete<void>(`/api/v1/auth/users/${userId}/permissions/`, {
-            body: { permission_codes: permissionCodes }
-        } as any);
+        return this.client.delete<void>(`/api/v1/auth/users/${userId}/permissions/`, { permission_codes: permissionCodes });
     }
 }

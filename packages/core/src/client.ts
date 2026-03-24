@@ -1,5 +1,5 @@
 import { TenxyteHttpClient } from './http/client';
-import { createAuthInterceptor, createRefreshInterceptor, createDeviceInfoInterceptor } from './http/interceptors';
+import { createAuthInterceptor, createRefreshInterceptor, createDeviceInfoInterceptor, createRetryInterceptor } from './http/interceptors';
 import type { TenxyteContext } from './http/interceptors';
 import type { TenxyteClientConfig, ResolvedTenxyteConfig } from './config';
 import type { TenxyteStorage } from './storage';
@@ -15,6 +15,8 @@ import { AdminModule } from './modules/admin';
 import { GdprModule } from './modules/gdpr';
 import { DashboardModule } from './modules/dashboard';
 import { EventEmitter } from './utils/events';
+import { decodeJwt } from './utils/jwt';
+import type { DecodedTenxyteToken } from './utils/jwt';
 
 /**
  * Map of all SDK events and their associated payload types.
@@ -107,6 +109,13 @@ export class TenxyteClient {
             this.http.addRequestInterceptor(createDeviceInfoInterceptor(this.config.deviceInfoOverride));
         }
 
+        // Auto-retry: configurable retry middleware with exponential backoff
+        if (this.config.retryConfig) {
+            this.http.addResponseInterceptor(
+                createRetryInterceptor(this.config.retryConfig, this.config.logger),
+            );
+        }
+
         // Auto-refresh: silently retry on 401 by refreshing the access token
         if (this.config.autoRefresh) {
             this.http.addResponseInterceptor(
@@ -142,7 +151,7 @@ export class TenxyteClient {
         this.security = new SecurityModule(this.http);
         this.user = new UserModule(this.http);
         this.b2b = new B2bModule(this.http);
-        this.ai = new AiModule(this.http);
+        this.ai = new AiModule(this.http, this.config.logger);
         this.applications = new ApplicationsModule(this.http);
         this.admin = new AdminModule(this.http);
         this.gdpr = new GdprModule(this.http);
@@ -170,4 +179,96 @@ export class TenxyteClient {
     emit<K extends keyof TenxyteEventMap>(event: K, payload: TenxyteEventMap[K]): void {
         this.emitter.emit(event, payload);
     }
+
+    // ─── High-level helpers ───
+
+    /**
+     * Check whether a valid (non-expired) access token exists in storage.
+     * Performs a synchronous JWT expiry check — no network call.
+     */
+    async isAuthenticated(): Promise<boolean> {
+        const token = await this.storage.getItem('tx_access');
+        if (!token) return false;
+        return !this.isTokenExpiredSync(token);
+    }
+
+    /**
+     * Return the current access token from storage, or `null` if absent.
+     */
+    async getAccessToken(): Promise<string | null> {
+        return this.storage.getItem('tx_access');
+    }
+
+    /**
+     * Decode the current access token and return the JWT payload.
+     * Returns `null` if no token is stored or if decoding fails.
+     * No network call is made — this reads from the cached JWT.
+     */
+    async getCurrentUser(): Promise<DecodedTenxyteToken | null> {
+        const token = await this.storage.getItem('tx_access');
+        if (!token) return null;
+        return decodeJwt(token);
+    }
+
+    /**
+     * Check whether the stored access token is expired without making a network call.
+     * Returns `true` if expired or if no token is present.
+     */
+    async isTokenExpired(): Promise<boolean> {
+        const token = await this.storage.getItem('tx_access');
+        if (!token) return true;
+        return this.isTokenExpiredSync(token);
+    }
+
+    /** Synchronous helper: checks JWT `exp` claim against current time. */
+    private isTokenExpiredSync(token: string): boolean {
+        const decoded = decodeJwt(token);
+        if (!decoded?.exp) return true;
+        // Allow 30s clock skew
+        return decoded.exp * 1000 < Date.now() - 30_000;
+    }
+
+    // ─── Framework wrapper interface ───
+
+    /**
+     * Returns a synchronous snapshot of the SDK state.
+     * Designed for consumption by framework wrappers (React, Vue, etc.).
+     * Note: This is async because storage access may be async.
+     */
+    async getState(): Promise<TenxyteClientState> {
+        const token = await this.storage.getItem('tx_access');
+        const isAuthenticated = token ? !this.isTokenExpiredSync(token) : false;
+        const user = token ? decodeJwt(token) : null;
+
+        return {
+            isAuthenticated,
+            user,
+            accessToken: token,
+            activeOrg: this.context.activeOrgSlug,
+            isAgentMode: this.ai.isAgentMode(),
+        };
+    }
+}
+
+/**
+ * Snapshot of the SDK state, intended for framework wrappers.
+ *
+ * **Event contract for reactive bindings:**
+ * - `token:stored`     → re-read state (login, register, refresh succeeded)
+ * - `token:refreshed`  → access token was silently rotated
+ * - `session:expired`  → clear authenticated state
+ * - `agent:awaiting_approval` → an AI action needs human confirmation
+ * - `error`            → unrecoverable SDK error
+ */
+export interface TenxyteClientState {
+    /** Whether the user has a valid, non-expired access token. */
+    isAuthenticated: boolean;
+    /** Decoded JWT payload of the current access token, or `null`. */
+    user: DecodedTenxyteToken | null;
+    /** Raw access token string, or `null`. */
+    accessToken: string | null;
+    /** Currently active organization slug, or `null`. */
+    activeOrg: string | null;
+    /** Whether the SDK is operating in AI Agent mode. */
+    isAgentMode: boolean;
 }

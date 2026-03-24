@@ -178,7 +178,7 @@ export class TenxyteHttpClient {
         return this.request<T>(endpoint, { ...config, method: 'PATCH', body: data });
     }
 
-    delete<T>(endpoint: string, config?: Omit<RequestConfig, 'method' | 'body'>) {
-        return this.request<T>(endpoint, { ...config, method: 'DELETE' });
+    delete<T>(endpoint: string, data?: unknown, config?: Omit<RequestConfig, 'method' | 'body'>) {
+        return this.request<T>(endpoint, { ...config, method: 'DELETE', body: data });
     }
 }
