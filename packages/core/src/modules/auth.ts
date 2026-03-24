@@ -1,5 +1,6 @@
 import { TenxyteHttpClient } from '../http/client';
 import { TokenPair, GeneratedSchema } from '../types';
+import type { TenxyteStorage } from '../storage';
 
 export interface LoginEmailOptions {
     totp_code?: string;
@@ -22,7 +23,22 @@ export interface SocialLoginRequest {
 }
 
 export class AuthModule {
-    constructor(private client: TenxyteHttpClient) { }
+    constructor(
+        private client: TenxyteHttpClient,
+        private storage?: TenxyteStorage,
+        private onTokens?: (accessToken: string, refreshToken?: string) => void,
+    ) { }
+
+    private async persistTokens(tokens: TokenPair): Promise<TokenPair> {
+        if (this.storage) {
+            await this.storage.setItem('tx_access', tokens.access_token);
+            if (tokens.refresh_token) {
+                await this.storage.setItem('tx_refresh', tokens.refresh_token);
+            }
+            this.onTokens?.(tokens.access_token, tokens.refresh_token);
+        }
+        return tokens;
+    }
 
     /**
      * Authenticate a user with their email and password.
@@ -33,7 +49,8 @@ export class AuthModule {
     async loginWithEmail(
         data: GeneratedSchema['LoginEmail'],
     ): Promise<TokenPair> {
-        return this.client.post<TokenPair>('/api/v1/auth/login/email/', data);
+        const tokens = await this.client.post<TokenPair>('/api/v1/auth/login/email/', data);
+        return this.persistTokens(tokens);
     }
 
     /**
@@ -44,7 +61,8 @@ export class AuthModule {
     async loginWithPhone(
         data: GeneratedSchema['LoginPhone'],
     ): Promise<TokenPair> {
-        return this.client.post<TokenPair>('/api/v1/auth/login/phone/', data);
+        const tokens = await this.client.post<TokenPair>('/api/v1/auth/login/phone/', data);
+        return this.persistTokens(tokens);
     }
 
     /**
@@ -53,7 +71,11 @@ export class AuthModule {
      * @returns The registered user data or a confirmation message.
      */
     async register(data: RegisterRequest): Promise<any> {
-        return this.client.post<any>('/api/v1/auth/register/', data);
+        const result = await this.client.post<any>('/api/v1/auth/register/', data);
+        if (result?.access_token) {
+            await this.persistTokens(result as TokenPair);
+        }
+        return result;
     }
 
     /**
@@ -87,7 +109,8 @@ export class AuthModule {
      * @returns A session token pair if the token is valid and unexpired.
      */
     async verifyMagicLink(token: string): Promise<TokenPair> {
-        return this.client.get<TokenPair>(`/api/v1/auth/magic-link/verify/`, { params: { token } });
+        const tokens = await this.client.get<TokenPair>(`/api/v1/auth/magic-link/verify/`, { params: { token } });
+        return this.persistTokens(tokens);
     }
 
     /**
@@ -98,7 +121,8 @@ export class AuthModule {
      * @returns An active session token pair.
      */
     async loginWithSocial(provider: 'google' | 'github' | 'microsoft' | 'facebook', data: SocialLoginRequest): Promise<TokenPair> {
-        return this.client.post<TokenPair>(`/api/v1/auth/social/${provider}/`, data);
+        const tokens = await this.client.post<TokenPair>(`/api/v1/auth/social/${provider}/`, data);
+        return this.persistTokens(tokens);
     }
 
     /**
@@ -109,8 +133,9 @@ export class AuthModule {
      * @returns An active session token pair after successful code exchange.
      */
     async handleSocialCallback(provider: 'google' | 'github' | 'microsoft' | 'facebook', code: string, redirectUri: string): Promise<TokenPair> {
-        return this.client.get<TokenPair>(`/api/v1/auth/social/${provider}/callback/`, {
+        const tokens = await this.client.get<TokenPair>(`/api/v1/auth/social/${provider}/callback/`, {
             params: { code, redirect_uri: redirectUri },
         });
+        return this.persistTokens(tokens);
     }
 }

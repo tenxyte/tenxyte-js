@@ -48,9 +48,9 @@
 
 > `priority:critical` `type:feature` `mod:core` `mod:auth`
 
-- [ ] **ISSUE-003-A** — Store `access_token` and `refresh_token` in storage after every successful login (email, phone, social, magic link)
-- [ ] **ISSUE-003-B** — Store tokens after `register` if the response contains tokens
-- [ ] **ISSUE-003-C** — Automatically feed `rbac.setToken(accessToken)` after every token storage
+- [x] **ISSUE-003-A** — Store `access_token` and `refresh_token` in storage after every successful login (email, phone, social, magic link)
+- [x] **ISSUE-003-B** — Store tokens after `register` if the response contains tokens
+- [x] **ISSUE-003-C** — Automatically feed `rbac.setToken(accessToken)` after every token storage
 - [ ] **ISSUE-003-D** — Clear storage after `logout()` / `logoutAll()`, emit `session:expired`
 
 ---

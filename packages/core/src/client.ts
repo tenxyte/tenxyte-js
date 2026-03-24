@@ -101,6 +101,7 @@ export class TenxyteClient {
                         this.config.onSessionExpired?.();
                     },
                     (accessToken, refreshToken) => {
+                        this.rbac.setToken(accessToken);
                         this.emit('token:refreshed', { accessToken });
                         this.emit('token:stored', { accessToken, refreshToken });
                     },
@@ -108,9 +109,12 @@ export class TenxyteClient {
             );
         }
 
-        this.auth = new AuthModule(this.http);
-        this.security = new SecurityModule(this.http);
         this.rbac = new RbacModule(this.http);
+        this.auth = new AuthModule(this.http, this.storage, (accessToken, refreshToken) => {
+            this.rbac.setToken(accessToken);
+            this.emit('token:stored', { accessToken, refreshToken });
+        });
+        this.security = new SecurityModule(this.http);
         this.user = new UserModule(this.http);
         this.b2b = new B2bModule(this.http);
         this.ai = new AiModule(this.http);
