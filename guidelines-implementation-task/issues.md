@@ -78,9 +78,9 @@
 
 > `priority:high` `type:chore` `mod:core`
 
-- [ ] **ISSUE-006-A** — Add to `src/index.ts`: exports for `b2b`, `ai`, `storage`, `utils/events`, `utils/jwt`, `utils/device_info`
-- [ ] **ISSUE-006-B** — Export `interceptors.ts` from `src/http/index.ts`
-- [ ] **ISSUE-006-C** — Export new modules (applications, admin, gdpr, dashboard) as they are created
+- [x] **ISSUE-006-A** — Add to `src/index.ts`: exports for `b2b`, `ai`, `storage`, `utils/events`, `utils/jwt`, `utils/device_info`
+- [x] **ISSUE-006-B** — Export `interceptors.ts` from `src/http/index.ts`
+- [x] **ISSUE-006-C** — Export new modules (applications, admin, gdpr, dashboard) as they are created
 
 ---
 
