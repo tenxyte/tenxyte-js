@@ -13,6 +13,7 @@
         "vite": "^5.0.0"
     },
     "dependencies": {
-        "@tenxyte/core": "file:../../packages/core"
+        "@tenxyte/core": "file:../../packages/core",
+        "dotenv": "^17.3.1"
     }
 }

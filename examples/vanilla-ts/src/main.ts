@@ -6,10 +6,12 @@ import { TenxyteClient } from '@tenxyte/core'
  * Make sure to replace `YOUR_APP_KEY` with your actual public Application Key.
  */
 const tx = new TenxyteClient({
-    appKey: 'pk_test_vanillats12345',
-    baseURL: 'http://localhost:8000', // Default local backend port
-    autoRefresh: true,
-})
+  baseUrl: import.meta.env.VITE_TENXYTE_BASE_URL,
+  headers: {
+    'X-Access-Key': import.meta.env.VITE_TENXYTE_ACCESS_KEY,
+    'X-Access-Secret': import.meta.env.VITE_TENXYTE_ACCESS_SECRET,
+  }
+});
 
 // UI Elements
 const appDiv = document.querySelector<HTMLDivElement>('#app')!

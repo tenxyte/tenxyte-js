@@ -17,6 +17,12 @@
 /.next/
 /out/
 
+
+/packages/*/node_modules
+/guidelines-implementation-task
+/guidelines-implementation-task/*
+/guidelines-implementation-task/*/*
+
 # production
 /build
 
@@ -39,9 +45,3 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-
-
-/packages/*/node_modules
-/guidelines-implementation-task
-/guidelines-implementation-task/*
-/guidelines-implementation-task/*/*
