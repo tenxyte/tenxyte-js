@@ -20,6 +20,7 @@ export type RequestConfig = Omit<RequestInit, 'body' | 'headers'> & {
 export class TenxyteHttpClient {
     private baseUrl: string;
     private defaultHeaders: Record<string, string>;
+    private timeoutMs: number | undefined;
 
     // Interceptors
     private requestInterceptors: Array<(config: RequestConfig & { url: string }) => Promise<RequestConfig & { url: string }> | (RequestConfig & { url: string })> = [];
@@ -27,6 +28,7 @@ export class TenxyteHttpClient {
 
     constructor(options: HttpClientOptions) {
         this.baseUrl = options.baseUrl.replace(/\/$/, ''); // Remove trailing slash
+        this.timeoutMs = options.timeoutMs;
         this.defaultHeaders = {
             'Content-Type': 'application/json',
             Accept: 'application/json',
@@ -87,6 +89,15 @@ export class TenxyteHttpClient {
 
         const { url, ...fetchConfig } = requestContext as any;
 
+        let controller: AbortController | undefined;
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+        if (this.timeoutMs) {
+            controller = new AbortController();
+            (fetchConfig as any).signal = controller.signal;
+            timeoutId = setTimeout(() => controller!.abort(), this.timeoutMs);
+        }
+
         try {
             let response = await fetch(url, fetchConfig as RequestInit);
 
@@ -111,14 +122,25 @@ export class TenxyteHttpClient {
 
             return (await response.text()) as unknown as T;
         } catch (error: any) {
+            if (error?.name === 'AbortError') {
+                throw {
+                    error: `Request timed out after ${this.timeoutMs}ms`,
+                    code: 'TIMEOUT' as import('../types').TenxyteErrorCode,
+                    details: url,
+                } as TenxyteError;
+            }
             if (error && error.code) {
                 throw error; // Already normalized
             }
             throw {
                 error: error.message || 'Network request failed',
-                code: 'NETWORK_ERROR' as unknown as import('../types').TenxyteErrorCode,
+                code: 'NETWORK_ERROR' as import('../types').TenxyteErrorCode,
                 details: String(error)
             } as TenxyteError;
+        } finally {
+            if (timeoutId !== undefined) {
+                clearTimeout(timeoutId);
+            }
         }
     }
 

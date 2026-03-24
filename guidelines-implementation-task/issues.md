@@ -60,8 +60,8 @@
 > `priority:high` `type:bug` `mod:http`
 > **File**: `packages/core/src/http/client.ts`
 
-- [ ] **ISSUE-004-A** — Create `AbortController` in `request()` when `timeoutMs` is set, pass `signal` to `fetch()`, clean up in `finally`
-- [ ] **ISSUE-004-B** — Catch `AbortError` → throw `TenxyteError` with `code: 'TIMEOUT'`, add `TIMEOUT` to `TenxyteErrorCode`
+- [x] **ISSUE-004-A** — Create `AbortController` in `request()` when `timeoutMs` is set, pass `signal` to `fetch()`, clean up in `finally`
+- [x] **ISSUE-004-B** — Catch `AbortError` → throw `TenxyteError` with `code: 'TIMEOUT'`, add `TIMEOUT` to `TenxyteErrorCode`
 
 ---
 

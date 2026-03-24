@@ -89,7 +89,10 @@ export type TenxyteErrorCode =
     | 'BUDGET_EXCEEDED'
     | 'RATE_LIMIT_EXCEEDED'
     | 'HEARTBEAT_MISSING'
-    | 'AIRS_DISABLED';
+    | 'AIRS_DISABLED'
+    // Network / Transport
+    | 'TIMEOUT'
+    | 'NETWORK_ERROR';
 
 /**
  * Organization Structure defining a B2B tenant or hierarchical unit.
