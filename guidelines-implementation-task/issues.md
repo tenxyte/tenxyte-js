@@ -26,7 +26,7 @@
 
 - [x] **ISSUE-001-A** — Define `TenxyteClientConfig` interface with all options (`baseUrl`, `headers`, `storage`, `autoRefresh`, `autoDeviceInfo`, `timeoutMs`, `onSessionExpired`, `logger`) and JSDoc
 - [x] **ISSUE-001-B** — Implement `resolveConfig()` with default values (`storage` → `MemoryStorage`, `autoRefresh` → `true`, `autoDeviceInfo` → `true`)
-- [ ] **ISSUE-001-C** — Export `SDK_VERSION` from `config.ts`
+- [x] **ISSUE-001-C** — Export `SDK_VERSION` from `config.ts`
 
 ---
 

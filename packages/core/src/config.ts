@@ -2,6 +2,12 @@ import type { TenxyteStorage } from './storage';
 import { MemoryStorage } from './storage';
 
 /**
+ * Semantic version of the SDK, kept in sync with package.json.
+ * Sent as X-SDK-Version header when diagnostics are enabled.
+ */
+export const SDK_VERSION = '0.9.0';
+
+/**
  * Log level controlling the verbosity of the SDK internal logger.
  *
  * - `'silent'` — No output (default).
