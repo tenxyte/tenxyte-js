@@ -32,7 +32,8 @@ export function createAuthInterceptor(storage: TenxyteStorage, context: TenxyteC
 export function createRefreshInterceptor(
     client: TenxyteHttpClient,
     storage: TenxyteStorage,
-    onSessionExpired: () => void
+    onSessionExpired: () => void,
+    onTokenRefreshed?: (accessToken: string, refreshToken?: string) => void,
 ) {
     let isRefreshing = false;
     let refreshQueue: Array<(token: string | null) => void> = [];
@@ -88,6 +89,7 @@ export function createRefreshInterceptor(
                 }
 
                 isRefreshing = false;
+                onTokenRefreshed?.(data.access, data.refresh);
                 processQueue(null, data.access);
 
                 // Retry original request seamlessly for the caller that initiated this

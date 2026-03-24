@@ -35,12 +35,12 @@
 > `priority:critical` `type:refactor` `mod:core`
 > **File**: `packages/core/src/client.ts`
 
-- [ ] **ISSUE-002-A** — Accept `TenxyteClientConfig` instead of `HttpClientOptions` (backward-compat `{ baseUrl }`)
-- [ ] **ISSUE-002-B** — Automatically instantiate `storage` (default: `MemoryStorage`), expose `this.storage` as readonly
-- [ ] **ISSUE-002-C** — Automatically wire `createAuthInterceptor(storage, context)` in the constructor
-- [ ] **ISSUE-002-D** — Automatically wire `createRefreshInterceptor` if `config.autoRefresh !== false`
-- [ ] **ISSUE-002-E** — Integrate `EventEmitter` via composition, expose `.on()`, `.once()`, `.off()`, define event names (`session:expired`, `token:refreshed`, `token:stored`, `agent:awaiting_approval`, `error`)
-- [ ] **ISSUE-002-F** — Emit events at the right moments (`token:stored` after login, `session:expired` after refresh fail, etc.)
+- [x] **ISSUE-002-A** — Accept `TenxyteClientConfig` instead of `HttpClientOptions` (backward-compat `{ baseUrl }`)
+- [x] **ISSUE-002-B** — Automatically instantiate `storage` (default: `MemoryStorage`), expose `this.storage` as readonly
+- [x] **ISSUE-002-C** — Automatically wire `createAuthInterceptor(storage, context)` in the constructor
+- [x] **ISSUE-002-D** — Automatically wire `createRefreshInterceptor` if `config.autoRefresh !== false`
+- [x] **ISSUE-002-E** — Integrate `EventEmitter` via composition, expose `.on()`, `.once()`, `.off()`, define event names (`session:expired`, `token:refreshed`, `token:stored`, `agent:awaiting_approval`, `error`)
+- [x] **ISSUE-002-F** — Emit events at the right moments (`token:stored` after login, `session:expired` after refresh fail, etc.)
 
 ---
 
