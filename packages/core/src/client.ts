@@ -12,6 +12,7 @@ import { B2bModule } from './modules/b2b';
 import { AiModule } from './modules/ai';
 import { ApplicationsModule } from './modules/applications';
 import { AdminModule } from './modules/admin';
+import { GdprModule } from './modules/gdpr';
 import { EventEmitter } from './utils/events';
 
 /**
@@ -59,6 +60,8 @@ export class TenxyteClient {
     public applications: ApplicationsModule;
     /** Admin module (audit logs, login attempts, blacklisted tokens, refresh tokens) */
     public admin: AdminModule;
+    /** GDPR module (account deletion, data export, deletion request management) */
+    public gdpr: GdprModule;
 
     /** Internal event emitter used via composition. */
     private emitter: EventEmitter<TenxyteEventMap>;
@@ -139,6 +142,7 @@ export class TenxyteClient {
         this.ai = new AiModule(this.http);
         this.applications = new ApplicationsModule(this.http);
         this.admin = new AdminModule(this.http);
+        this.gdpr = new GdprModule(this.http);
     }
 
     // ─── Event delegation ───

@@ -40,6 +40,7 @@ export class UserModule {
     }
 
     /**
+     * @deprecated Use `gdpr.requestAccountDeletion()` instead. This proxy will be removed in a future release.
      * Trigger self-deletion of an entire account data boundary.
      * @param password - Requires the active system password as destructive proof of intent.
      * @param otpCode - (Optional) If an OTP was queried prior to attempting account deletion.
