@@ -17,12 +17,7 @@
 /.next/
 /out/
 
-
 /packages/*/node_modules
-
-/guidelines-implementation-task
-/guidelines-implementation-task/*
-/guidelines-implementation-task/*/*
 
 # production
 /build
