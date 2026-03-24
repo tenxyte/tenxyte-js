@@ -54,6 +54,30 @@ export interface ApplicationCreateResponse {
     secret_rotation_warning?: string;
 }
 
+/**
+ * Body accepted by `updateApplication()` (PUT — full replace).
+ */
+export interface ApplicationUpdateData {
+    name?: string;
+    description?: string;
+    is_active?: boolean;
+}
+
+/**
+ * Response returned by `regenerateCredentials()`.
+ * **`credentials.access_secret` is only shown once.**
+ */
+export interface ApplicationRegenerateResponse {
+    message?: string;
+    application?: Record<string, unknown>;
+    credentials?: {
+        access_key?: string;
+        access_secret?: string;
+    };
+    warning?: string;
+    old_credentials_invalidated?: boolean;
+}
+
 export class ApplicationsModule {
     constructor(private client: TenxyteHttpClient) {}
 
@@ -84,5 +108,44 @@ export class ApplicationsModule {
      */
     async getApplication(appId: string): Promise<Application> {
         return this.client.get<Application>(`/api/v1/auth/applications/${appId}/`);
+    }
+
+    /**
+     * Fully update an application (PUT — all fields replaced).
+     * @param appId - The application ID.
+     * @param data - The full updated application data.
+     * @returns The updated application.
+     */
+    async updateApplication(appId: string, data: ApplicationUpdateData): Promise<Application> {
+        return this.client.put<Application>(`/api/v1/auth/applications/${appId}/`, data);
+    }
+
+    /**
+     * Partially update an application (PATCH — only provided fields are changed).
+     * @param appId - The application ID.
+     * @param data - The fields to update.
+     * @returns The updated application.
+     */
+    async patchApplication(appId: string, data: Partial<ApplicationUpdateData>): Promise<Application> {
+        return this.client.patch<Application>(`/api/v1/auth/applications/${appId}/`, data);
+    }
+
+    /**
+     * Delete an application permanently.
+     * @param appId - The application ID.
+     */
+    async deleteApplication(appId: string): Promise<void> {
+        return this.client.delete<void>(`/api/v1/auth/applications/${appId}/`);
+    }
+
+    /**
+     * Regenerate credentials for an application.
+     * **Warning:** Old credentials are immediately invalidated. The new secret is shown only once.
+     * @param appId - The application ID.
+     * @param confirmation - Must be the string `"REGENERATE"` to confirm the irreversible action.
+     * @returns The new credentials (access_key + access_secret shown once).
+     */
+    async regenerateCredentials(appId: string, confirmation: string = 'REGENERATE'): Promise<ApplicationRegenerateResponse> {
+        return this.client.post<ApplicationRegenerateResponse>(`/api/v1/auth/applications/${appId}/regenerate/`, { confirmation });
     }
 }

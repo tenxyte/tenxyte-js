@@ -10,6 +10,7 @@ import { RbacModule } from './modules/rbac';
 import { UserModule } from './modules/user';
 import { B2bModule } from './modules/b2b';
 import { AiModule } from './modules/ai';
+import { ApplicationsModule } from './modules/applications';
 import { EventEmitter } from './utils/events';
 
 /**
@@ -53,6 +54,8 @@ export class TenxyteClient {
     public b2b: B2bModule;
     /** AIRS - AI Responsibility & Security module (Agent tokens, Circuit breakers, HITL) */
     public ai: AiModule;
+    /** Applications module (API client CRUD, credential management) */
+    public applications: ApplicationsModule;
 
     /** Internal event emitter used via composition. */
     private emitter: EventEmitter<TenxyteEventMap>;
@@ -131,6 +134,7 @@ export class TenxyteClient {
         this.user = new UserModule(this.http);
         this.b2b = new B2bModule(this.http);
         this.ai = new AiModule(this.http);
+        this.applications = new ApplicationsModule(this.http);
     }
 
     // ─── Event delegation ───
