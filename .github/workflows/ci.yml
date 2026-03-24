@@ -31,8 +31,11 @@ jobs:
       - name: Install Package Dependencies
         run: npm ci
 
+      - name: Lint
+        run: npm run lint
+
       - name: Type Check
-        run: npx tsc --noEmit
+        run: npm run typecheck
 
       - name: Run Tests (Vitest)
         run: npm run test

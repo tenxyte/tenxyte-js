@@ -83,13 +83,79 @@ describe('RbacModule', () => {
             });
         });
 
-        it('removePermissionsFromRole should DELETE with body payload if config allows', async () => {
+        it('removePermissionsFromRole should DELETE with body payload', async () => {
             vi.mocked(client.request).mockResolvedValueOnce(undefined);
             await rbac.removePermissionsFromRole('role123', ['users.view']);
             expect(client.request).toHaveBeenCalledWith('/api/v1/auth/roles/role123/permissions/', {
                 method: 'DELETE',
                 body: { permission_codes: ['users.view'] },
-            } as any);
+            });
+        });
+    });
+
+    describe('Edge Cases', () => {
+        it('hasRole should return false when token is null', () => {
+            rbac.setToken(null);
+            expect(rbac.hasRole('admin')).toBe(false);
+        });
+
+        it('hasPermission should return false when token is null', () => {
+            rbac.setToken(null);
+            expect(rbac.hasPermission('users.view')).toBe(false);
+        });
+
+        it('hasAnyRole should return false for empty roles in JWT', () => {
+            const emptyToken = createDummyJwt({ roles: [], permissions: [] });
+            expect(rbac.hasAnyRole(['admin'], emptyToken)).toBe(false);
+        });
+
+        it('hasAllRoles should return false for empty roles in JWT', () => {
+            const emptyToken = createDummyJwt({ roles: [], permissions: [] });
+            expect(rbac.hasAllRoles(['admin'], emptyToken)).toBe(false);
+        });
+
+        it('hasRole should return false for malformed JWT', () => {
+            expect(rbac.hasRole('admin', 'not.a.valid.jwt')).toBe(false);
+        });
+
+        it('hasPermission should return false for JWT without permissions field', () => {
+            const noPermsToken = createDummyJwt({ roles: ['admin'] });
+            expect(rbac.hasPermission('users.view', noPermsToken)).toBe(false);
+        });
+    });
+
+    describe('User Roles & Permissions', () => {
+        it('getUserRoles should GET /api/v1/auth/users/:id/roles/', async () => {
+            vi.mocked(client.request).mockResolvedValueOnce({ roles: ['admin'] });
+            const result = await rbac.getUserRoles('user-1');
+            expect(client.request).toHaveBeenCalledWith('/api/v1/auth/users/user-1/roles/', { method: 'GET' });
+            expect(result).toEqual({ roles: ['admin'] });
+        });
+
+        it('getUserPermissions should GET /api/v1/auth/users/:id/permissions/', async () => {
+            vi.mocked(client.request).mockResolvedValueOnce({ permissions: ['users.view'] });
+            const result = await rbac.getUserPermissions('user-1');
+            expect(client.request).toHaveBeenCalledWith('/api/v1/auth/users/user-1/permissions/', { method: 'GET' });
+            expect(result).toEqual({ permissions: ['users.view'] });
+        });
+
+        it('removeRoleFromUser should DELETE /api/v1/auth/users/:id/roles/ with query params', async () => {
+            vi.mocked(client.request).mockResolvedValueOnce(undefined);
+            await rbac.removeRoleFromUser('user-1', 'admin');
+            expect(client.request).toHaveBeenCalledWith('/api/v1/auth/users/user-1/roles/', {
+                method: 'DELETE',
+                body: undefined,
+                params: { role_code: 'admin' },
+            });
+        });
+
+        it('removePermissionsFromUser should DELETE /api/v1/auth/users/:id/permissions/ with body', async () => {
+            vi.mocked(client.request).mockResolvedValueOnce(undefined);
+            await rbac.removePermissionsFromUser('user-1', ['users.view', 'users.edit']);
+            expect(client.request).toHaveBeenCalledWith('/api/v1/auth/users/user-1/permissions/', {
+                method: 'DELETE',
+                body: { permission_codes: ['users.view', 'users.edit'] },
+            });
         });
     });
 });

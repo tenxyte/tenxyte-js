@@ -53,7 +53,7 @@ export class TenxyteHttpClient {
             ? endpoint
             : `${this.baseUrl}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
 
-        let urlObj = new URL(urlStr);
+        const urlObj = new URL(urlStr);
 
         if (config.params) {
             Object.entries(config.params).forEach(([key, value]) => {
@@ -153,7 +153,7 @@ export class TenxyteHttpClient {
                 details: body.details || body,
                 retry_after: response.headers.has('Retry-After') ? parseInt(response.headers.get('Retry-After')!, 10) : undefined,
             } as TenxyteError;
-        } catch (e) {
+        } catch (_e) {
             return {
                 error: `HTTP Error ${response.status}: ${response.statusText}`,
                 code: `HTTP_${response.status}` as unknown as import('../types').TenxyteErrorCode,

@@ -1,5 +1,5 @@
 import { TenxyteHttpClient } from '../http/client';
-import { TenxyteUser, TokenPair } from '../types';
+import { TenxyteUser } from '../types';
 import { base64urlToBuffer, bufferToBase64url } from '../utils/base64url';
 
 export class SecurityModule {

@@ -80,6 +80,111 @@ describe('SecurityModule', () => {
         await security.deleteWebAuthnCredential(123);
         expect(client.request).toHaveBeenCalledWith('/api/v1/auth/webauthn/credentials/123/', {
             method: 'DELETE',
+            body: undefined,
         });
+    });
+
+    it('listWebAuthnCredentials should GET /api/v1/auth/webauthn/credentials/', async () => {
+        vi.mocked(client.request).mockResolvedValueOnce({ credentials: [], count: 0 });
+        const result = await security.listWebAuthnCredentials();
+        expect(client.request).toHaveBeenCalledWith('/api/v1/auth/webauthn/credentials/', { method: 'GET' });
+        expect(result.count).toBe(0);
+    });
+
+    it('registerWebAuthn should begin registration and handle navigator.credentials.create', async () => {
+        // Step 1: Mock begin response
+        const beginResponse = {
+            publicKey: {
+                challenge: 'Y2hhbGxlbmdl', // base64url of "challenge"
+                user: { id: 'dXNlcg', name: 'user@test.com', displayName: 'User' },
+                rp: { name: 'Test', id: 'test.com' },
+                pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
+            },
+        };
+        vi.mocked(client.request).mockResolvedValueOnce(beginResponse);
+
+        // Step 2: Mock complete response
+        vi.mocked(client.request).mockResolvedValueOnce({ message: 'Credential registered' });
+
+        // Mock navigator.credentials.create
+        const mockRawId = new Uint8Array([1, 2, 3]).buffer;
+        const mockAttObj = new Uint8Array([4, 5, 6]).buffer;
+        const mockClientData = new Uint8Array([7, 8, 9]).buffer;
+        vi.stubGlobal('navigator', {
+            credentials: {
+                create: vi.fn().mockResolvedValue({
+                    id: 'cred-id',
+                    type: 'public-key',
+                    rawId: mockRawId,
+                    response: {
+                        attestationObject: mockAttObj,
+                        clientDataJSON: mockClientData,
+                    },
+                }),
+            },
+        });
+
+        const result = await security.registerWebAuthn('My Laptop');
+
+        expect(client.request).toHaveBeenCalledWith('/api/v1/auth/webauthn/register/begin/', {
+            method: 'POST',
+            body: undefined,
+        });
+        expect(client.request).toHaveBeenCalledTimes(2);
+        expect(navigator.credentials.create).toHaveBeenCalled();
+
+        vi.unstubAllGlobals();
+    });
+
+    it('authenticateWebAuthn should begin authentication and handle navigator.credentials.get', async () => {
+        // Step 1: Mock begin response
+        const beginResponse = {
+            publicKey: {
+                challenge: 'Y2hhbGxlbmdl',
+                allowCredentials: [{ id: 'Y3JlZA', type: 'public-key' }],
+            },
+        };
+        vi.mocked(client.request).mockResolvedValueOnce(beginResponse);
+
+        // Step 2: Mock complete response
+        vi.mocked(client.request).mockResolvedValueOnce({
+            access: 'acc',
+            refresh: 'ref',
+            user: { id: 1 },
+            message: 'Authenticated',
+            credential_used: 'cred-id',
+        });
+
+        // Mock navigator.credentials.get
+        const mockRawId = new Uint8Array([1, 2, 3]).buffer;
+        const mockAuthData = new Uint8Array([10, 11]).buffer;
+        const mockClientData = new Uint8Array([12, 13]).buffer;
+        const mockSignature = new Uint8Array([14, 15]).buffer;
+        vi.stubGlobal('navigator', {
+            credentials: {
+                get: vi.fn().mockResolvedValue({
+                    id: 'cred-id',
+                    type: 'public-key',
+                    rawId: mockRawId,
+                    response: {
+                        authenticatorData: mockAuthData,
+                        clientDataJSON: mockClientData,
+                        signature: mockSignature,
+                        userHandle: null,
+                    },
+                }),
+            },
+        });
+
+        const result = await security.authenticateWebAuthn('user@test.com');
+
+        expect(client.request).toHaveBeenCalledWith('/api/v1/auth/webauthn/authenticate/begin/', {
+            method: 'POST',
+            body: { email: 'user@test.com' },
+        });
+        expect(navigator.credentials.get).toHaveBeenCalled();
+        expect(result.credential_used).toBe('cred-id');
+
+        vi.unstubAllGlobals();
     });
 });

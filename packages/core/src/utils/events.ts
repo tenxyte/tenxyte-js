@@ -3,6 +3,7 @@
  * Provides `.on`, `.once`, `.off`, and `.emit`.
  */
 export class EventEmitter<Events extends Record<string, any>> {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
     private events: Map<keyof Events, Array<Function>>;
 
     constructor() {

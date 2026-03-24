@@ -18,7 +18,7 @@ export function decodeJwt(token: string): DecodedTenxyteToken | null {
             return null;
         }
 
-        let base64Url = parts[1];
+        const base64Url = parts[1];
         if (!base64Url) return null;
 
         let base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
@@ -45,7 +45,7 @@ export function decodeJwt(token: string): DecodedTenxyteToken | null {
         }
 
         return JSON.parse(jsonPayload);
-    } catch (e) {
+    } catch (_e) {
         return null;
     }
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { TenxyteHttpClient } from '../src/http/client';
 import { MemoryStorage } from '../src/storage';
-import { createAuthInterceptor, createRefreshInterceptor } from '../src/http/interceptors';
+import { createAuthInterceptor, createRefreshInterceptor, createRetryInterceptor, createDeviceInfoInterceptor } from '../src/http/interceptors';
 
 // Mock global fetch
 const mockFetch = vi.fn();
@@ -139,6 +139,151 @@ describe('TenxyteHttpClient', () => {
                     Authorization: 'Bearer new.access'
                 })
             }));
+        });
+    });
+
+    describe('Timeout', () => {
+        it('should abort request when timeoutMs is exceeded', async () => {
+            const timedClient = new TenxyteHttpClient({ baseUrl: 'https://api.tenxyte.com/v1', timeoutMs: 50 });
+
+            // Simulate a fetch that respects AbortSignal
+            mockFetch.mockImplementationOnce((_url: string, init: RequestInit) => {
+                return new Promise((resolve, reject) => {
+                    const signal = init?.signal;
+                    if (signal) {
+                        signal.addEventListener('abort', () => {
+                            const err = new DOMException('The operation was aborted.', 'AbortError');
+                            reject(err);
+                        });
+                    }
+                    // Never resolve — let the abort fire
+                });
+            });
+
+            await expect(timedClient.get('/slow')).rejects.toMatchObject({ code: 'TIMEOUT' });
+        });
+    });
+
+    describe('Retry Interceptor', () => {
+        it('should retry on 429 and respect Retry-After header', async () => {
+            const retryClient = new TenxyteHttpClient({ baseUrl: 'https://api.tenxyte.com/v1' });
+            retryClient.addResponseInterceptor(
+                createRetryInterceptor({ maxRetries: 2, baseDelayMs: 10 }),
+            );
+
+            mockFetch
+                .mockResolvedValueOnce({
+                    ok: false,
+                    status: 429,
+                    headers: new Headers({ 'content-type': 'application/json', 'Retry-After': '0' }),
+                    json: () => Promise.resolve({ error: 'Too many requests' }),
+                } as any)
+                .mockResolvedValueOnce({
+                    ok: true,
+                    status: 200,
+                    headers: new Headers({ 'content-type': 'application/json' }),
+                    json: () => Promise.resolve({ data: 'ok' }),
+                } as any);
+
+            const result = await retryClient.get('/rate-limited');
+            expect(result).toEqual({ data: 'ok' });
+            expect(mockFetch).toHaveBeenCalledTimes(2); // original + 1 retry
+        });
+
+        it('should retry on 500 errors', async () => {
+            const retryClient = new TenxyteHttpClient({ baseUrl: 'https://api.tenxyte.com/v1' });
+            retryClient.addResponseInterceptor(
+                createRetryInterceptor({ maxRetries: 1, baseDelayMs: 10 }),
+            );
+
+            mockFetch
+                .mockResolvedValueOnce({
+                    ok: false,
+                    status: 500,
+                    headers: new Headers({ 'content-type': 'application/json' }),
+                    json: () => Promise.resolve({ error: 'Internal server error' }),
+                } as any)
+                .mockResolvedValueOnce({
+                    ok: true,
+                    status: 200,
+                    headers: new Headers({ 'content-type': 'application/json' }),
+                    json: () => Promise.resolve({ recovered: true }),
+                } as any);
+
+            const result = await retryClient.get('/flaky');
+            expect(result).toEqual({ recovered: true });
+        });
+
+        it('should not retry on 400 errors', async () => {
+            const retryClient = new TenxyteHttpClient({ baseUrl: 'https://api.tenxyte.com/v1' });
+            retryClient.addResponseInterceptor(
+                createRetryInterceptor({ maxRetries: 2, baseDelayMs: 10 }),
+            );
+
+            mockFetch.mockResolvedValueOnce({
+                ok: false,
+                status: 400,
+                headers: new Headers({ 'content-type': 'application/json' }),
+                json: () => Promise.resolve({ error: 'Bad request' }),
+            } as any);
+
+            await expect(retryClient.post('/bad', {})).rejects.toMatchObject({ error: 'Bad request' });
+            expect(mockFetch).toHaveBeenCalledTimes(1); // no retry
+        });
+    });
+
+    describe('Device Info Interceptor (unit)', () => {
+        it('should inject device_info into matching POST request objects', () => {
+            const interceptor = createDeviceInfoInterceptor();
+            const request = {
+                url: 'https://api.test.com/api/v1/auth/login/email/',
+                method: 'POST' as const,
+                body: { email: 'test@test.com', password: 'pass' },
+                headers: {},
+            };
+
+            const result = interceptor(request);
+            expect((result.body as Record<string, unknown>).device_info).toBeDefined();
+            expect((result.body as Record<string, unknown>).device_info).toContain('v=1');
+        });
+
+        it('should NOT inject device_info into non-auth POST requests', () => {
+            const interceptor = createDeviceInfoInterceptor();
+            const request = {
+                url: 'https://api.test.com/api/v1/auth/me/',
+                method: 'POST' as const,
+                body: { first_name: 'John' },
+                headers: {},
+            };
+
+            const result = interceptor(request);
+            expect((result.body as Record<string, unknown>).device_info).toBeUndefined();
+        });
+
+        it('should NOT inject device_info into GET requests', () => {
+            const interceptor = createDeviceInfoInterceptor();
+            const request = {
+                url: 'https://api.test.com/api/v1/auth/login/email/',
+                method: 'GET' as const,
+                body: undefined,
+                headers: {},
+            };
+
+            const result = interceptor(request);
+            expect(result.body).toBeUndefined();
+        });
+
+        it('should NOT overwrite existing device_info', () => {
+            const interceptor = createDeviceInfoInterceptor();
+            const request = {
+                url: 'https://api.test.com/api/v1/auth/register/',
+                method: 'POST' as const,
+                body: { email: 'a@b.com', password: 'x', device_info: 'custom' },
+                headers: {},
+            };
+
+            const result = interceptor(request);
+            expect((result.body as Record<string, unknown>).device_info).toBe('custom');
         });
     });
 });

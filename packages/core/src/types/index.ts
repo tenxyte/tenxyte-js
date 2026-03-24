@@ -1,4 +1,4 @@
-import type { components, paths } from './api-schema';
+import type { components } from './api-schema';
 
 export type GeneratedSchema = components['schemas'];
 

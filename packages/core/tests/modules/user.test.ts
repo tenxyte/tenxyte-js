@@ -73,4 +73,36 @@ describe('UserModule', () => {
             body: { reason: 'spam' },
         });
     });
+
+    it('getMyRoles should GET /api/v1/auth/me/roles/', async () => {
+        vi.mocked(client.request).mockResolvedValueOnce({ roles: ['admin'], permissions: ['users.view'] });
+        const result = await user.getMyRoles();
+        expect(client.request).toHaveBeenCalledWith('/api/v1/auth/me/roles/', { method: 'GET' });
+        expect(result.roles).toEqual(['admin']);
+    });
+
+    it('getUser should GET /api/v1/auth/admin/users/{id}/', async () => {
+        vi.mocked(client.request).mockResolvedValueOnce({ id: 'user-1', email: 'test@test.com' });
+        const result = await user.getUser('user-1');
+        expect(client.request).toHaveBeenCalledWith('/api/v1/auth/admin/users/user-1/', { method: 'GET' });
+        expect(result.email).toBe('test@test.com');
+    });
+
+    it('adminUpdateUser should PATCH /api/v1/auth/admin/users/{id}/', async () => {
+        vi.mocked(client.request).mockResolvedValueOnce({ id: 'user-1', first_name: 'Updated' });
+        const result = await user.adminUpdateUser('user-1', { first_name: 'Updated' });
+        expect(client.request).toHaveBeenCalledWith('/api/v1/auth/admin/users/user-1/', {
+            method: 'PATCH',
+            body: { first_name: 'Updated' },
+        });
+    });
+
+    it('adminDeleteUser should DELETE /api/v1/auth/admin/users/{id}/', async () => {
+        vi.mocked(client.request).mockResolvedValueOnce(undefined);
+        await user.adminDeleteUser('user-1');
+        expect(client.request).toHaveBeenCalledWith('/api/v1/auth/admin/users/user-1/', {
+            method: 'DELETE',
+            body: undefined,
+        });
+    });
 });

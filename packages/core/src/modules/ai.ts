@@ -29,7 +29,7 @@ export class AiModule {
         // Intercept 202 Accepted and specific 403 errors (Circuit Breaker)
         // Usually, these should be emitted via the main TenxyteClient EventEmitter.
         // For now, we add a response interceptor to handle the HTTP side.
-        this.client.addResponseInterceptor(async (response, request) => {
+        this.client.addResponseInterceptor(async (response, _request) => {
             // Note: Since response streams can only be read once, full integration
             // with EventEmitter for deep inspection (like 202s body) requires cloning.
             if (response.status === 202) {

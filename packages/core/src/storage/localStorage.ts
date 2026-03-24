@@ -26,7 +26,7 @@ export class LocalStorage implements TenxyteStorage {
             window.localStorage.setItem(testKey, '1');
             window.localStorage.removeItem(testKey);
             return true;
-        } catch (e) {
+        } catch (_e) {
             return false;
         }
     }
@@ -45,7 +45,7 @@ export class LocalStorage implements TenxyteStorage {
         }
         try {
             window.localStorage.setItem(key, value);
-        } catch (e) {
+        } catch (_e) {
             // Storage quota exceeded or similar error
             console.warn(`[Tenxyte SDK] Warning: failed to write to localStorage for key ${key}`);
         }

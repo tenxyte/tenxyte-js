@@ -20,7 +20,7 @@ describe('AuthModule', () => {
         const mockResponse = { access_token: 'acc', refresh_token: 'ref', token_type: 'Bearer', expires_in: 3600, device_summary: null };
         vi.mocked(client.request).mockResolvedValueOnce(mockResponse);
 
-        const data = { email: 'test@example.com', password: 'password123' };
+        const data = { email: 'test@example.com', password: 'password123', device_info: '' };
         const result = await auth.loginWithEmail(data);
 
         expect(client.request).toHaveBeenCalledWith('/api/v1/auth/login/email/', {
@@ -44,7 +44,7 @@ describe('AuthModule', () => {
     it('requestMagicLink should POST to /api/v1/auth/magic-link/request/', async () => {
         vi.mocked(client.request).mockResolvedValueOnce(undefined);
 
-        const data = { email: 'magic@example.com' };
+        const data = { email: 'magic@example.com', validation_url: 'https://app.test.com/verify' };
         await auth.requestMagicLink(data);
 
         expect(client.request).toHaveBeenCalledWith('/api/v1/auth/magic-link/request/', {
@@ -89,5 +89,67 @@ describe('AuthModule', () => {
             method: 'GET',
             params: { code: 'auth_code', redirect_uri: 'http://localhost/callback' },
         });
+    });
+
+    it('register should POST to /api/v1/auth/register/', async () => {
+        const mockResponse = { message: 'Account created', user_id: 'u1' };
+        vi.mocked(client.request).mockResolvedValueOnce(mockResponse);
+
+        const data = { email: 'new@test.com', password: 'P@ss123', first_name: 'Jane', last_name: 'Doe' };
+        const result = await auth.register(data);
+
+        expect(client.request).toHaveBeenCalledWith('/api/v1/auth/register/', {
+            method: 'POST',
+            body: data,
+        });
+        expect(result.user_id).toBe('u1');
+    });
+
+    it('register with login=true should persist tokens when access_token is returned', async () => {
+        const mockResponse = { access_token: 'new_acc', refresh_token: 'new_ref', user_id: 'u2' };
+        vi.mocked(client.request).mockResolvedValueOnce(mockResponse);
+
+        const data = { email: 'login@test.com', password: 'P@ss123', first_name: 'A', last_name: 'B', login: true };
+        const result = await auth.register(data);
+
+        expect(result.access_token).toBe('new_acc');
+    });
+
+    it('loginWithPhone should POST to /api/v1/auth/login/phone/', async () => {
+        const mockResponse = { access_token: 'acc', refresh_token: 'ref', token_type: 'Bearer', expires_in: 3600 };
+        vi.mocked(client.request).mockResolvedValueOnce(mockResponse);
+
+        const data = { phone_country_code: '+33', phone_number: '612345678', password: 'pass', device_info: '' };
+        const result = await auth.loginWithPhone(data);
+
+        expect(client.request).toHaveBeenCalledWith('/api/v1/auth/login/phone/', {
+            method: 'POST',
+            body: data,
+        });
+        expect(result.access_token).toBe('acc');
+    });
+
+    it('logoutAll should POST to /api/v1/auth/logout/all/', async () => {
+        vi.mocked(client.request).mockResolvedValueOnce(undefined);
+
+        await auth.logoutAll();
+
+        expect(client.request).toHaveBeenCalledWith('/api/v1/auth/logout/all/', {
+            method: 'POST',
+            body: undefined,
+        });
+    });
+
+    it('refreshToken should POST to /api/v1/auth/refresh/ with refresh_token', async () => {
+        const mockResponse = { access_token: 'new_acc', refresh_token: 'new_ref', token_type: 'Bearer', expires_in: 3600 };
+        vi.mocked(client.request).mockResolvedValueOnce(mockResponse);
+
+        const result = await auth.refreshToken('old_refresh');
+
+        expect(client.request).toHaveBeenCalledWith('/api/v1/auth/refresh/', {
+            method: 'POST',
+            body: { refresh_token: 'old_refresh' },
+        });
+        expect(result.access_token).toBe('new_acc');
     });
 });

@@ -86,7 +86,7 @@ function getAutoInfo() {
             else if (ua.includes('chrome')) info.runtime = 'chrome';
             else if (ua.includes('safari')) info.runtime = 'safari';
         }
-    } catch (e) {
+    } catch (_e) {
         // Ignore context extraction errors
     }
 
