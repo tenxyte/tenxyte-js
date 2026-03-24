@@ -1,5 +1,6 @@
 import type { TenxyteStorage } from './storage';
 import { MemoryStorage } from './storage';
+import type { CustomDeviceInfo } from './utils/device_info';
 
 /**
  * Semantic version of the SDK, kept in sync with package.json.
@@ -109,6 +110,14 @@ export interface TenxyteClientConfig {
      * is provided. Defaults to 'silent'.
      */
     logLevel?: LogLevel;
+
+    /**
+     * Override or supplement the auto-detected device information.
+     * When provided, these values are merged on top of the auto-detected
+     * fingerprint built by `buildDeviceInfo()`. Only relevant when
+     * `autoDeviceInfo` is `true`.
+     */
+    deviceInfoOverride?: CustomDeviceInfo;
 }
 
 /**
@@ -126,6 +135,7 @@ export interface ResolvedTenxyteConfig {
     onSessionExpired: (() => void) | undefined;
     logger: TenxyteLogger;
     logLevel: LogLevel;
+    deviceInfoOverride: CustomDeviceInfo | undefined;
 }
 
 /** Silent no-op logger used when the consumer does not provide one. */
@@ -157,5 +167,6 @@ export function resolveConfig(config: TenxyteClientConfig): ResolvedTenxyteConfi
         onSessionExpired: config.onSessionExpired,
         logger: config.logger ?? NOOP_LOGGER,
         logLevel: config.logLevel ?? 'silent',
+        deviceInfoOverride: config.deviceInfoOverride,
     };
 }

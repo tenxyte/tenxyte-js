@@ -1,5 +1,6 @@
 import type { TenxyteStorage } from '../storage';
 import type { RequestConfig, TenxyteHttpClient } from './client';
+import { buildDeviceInfo, type CustomDeviceInfo } from '../utils/device_info';
 
 export interface TenxyteContext {
     activeOrgSlug: string | null;
@@ -115,5 +116,30 @@ export function createRefreshInterceptor(
         }
 
         return response;
+    };
+}
+
+const DEVICE_INFO_ENDPOINTS = [
+    '/login/email/',
+    '/login/phone/',
+    '/register/',
+    '/social/',
+];
+
+export function createDeviceInfoInterceptor(override?: CustomDeviceInfo) {
+    const fingerprint = buildDeviceInfo(override);
+
+    return (request: RequestConfig & { url: string }) => {
+        const isPost = !request.method || request.method === 'POST';
+        const matchesEndpoint = DEVICE_INFO_ENDPOINTS.some(ep => request.url.includes(ep));
+
+        if (isPost && matchesEndpoint && request.body && typeof request.body === 'object') {
+            const body = request.body as Record<string, unknown>;
+            if (!body.device_info) {
+                return { ...request, body: { ...body, device_info: fingerprint } };
+            }
+        }
+
+        return request;
     };
 }

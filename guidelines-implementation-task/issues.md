@@ -69,8 +69,8 @@
 
 > `priority:high` `type:feature` `mod:core` `mod:auth`
 
-- [ ] **ISSUE-005-A** — Create a `createDeviceInfoInterceptor` that injects `device_info: buildDeviceInfo()` into POST requests to `/login/email/`, `/login/phone/`, `/register/`, `/social/*/`
-- [ ] **ISSUE-005-B** — Do not overwrite if `device_info` is already present in the body, accept `deviceInfoOverride` in config
+- [x] **ISSUE-005-A** — Create a `createDeviceInfoInterceptor` that injects `device_info: buildDeviceInfo()` into POST requests to `/login/email/`, `/login/phone/`, `/register/`, `/social/*/`
+- [x] **ISSUE-005-B** — Do not overwrite if `device_info` is already present in the body, accept `deviceInfoOverride` in config
 
 ---
 

@@ -1,5 +1,5 @@
 import { TenxyteHttpClient } from './http/client';
-import { createAuthInterceptor, createRefreshInterceptor } from './http/interceptors';
+import { createAuthInterceptor, createRefreshInterceptor, createDeviceInfoInterceptor } from './http/interceptors';
 import type { TenxyteContext } from './http/interceptors';
 import type { TenxyteClientConfig, ResolvedTenxyteConfig } from './config';
 import type { TenxyteStorage } from './storage';
@@ -89,6 +89,11 @@ export class TenxyteClient {
 
         // Auto-inject Authorization header + contextual headers on every request
         this.http.addRequestInterceptor(createAuthInterceptor(this.storage, this.context));
+
+        // Auto-inject device_info into authentication request bodies
+        if (this.config.autoDeviceInfo) {
+            this.http.addRequestInterceptor(createDeviceInfoInterceptor(this.config.deviceInfoOverride));
+        }
 
         // Auto-refresh: silently retry on 401 by refreshing the access token
         if (this.config.autoRefresh) {
