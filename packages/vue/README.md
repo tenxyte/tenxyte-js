@@ -20,8 +20,7 @@ import App from './App.vue';
 
 const tx = new TenxyteClient({
     baseUrl: 'https://api.example.com',
-    applicationId: 'your-app-id',
-    apiKey: 'your-api-key',
+    headers: { 'X-Access-Key': 'your-api-key' },
 });
 
 const app = createApp(App);

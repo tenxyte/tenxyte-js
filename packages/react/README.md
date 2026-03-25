@@ -19,8 +19,7 @@ import App from './App';
 
 const tx = new TenxyteClient({
     baseUrl: 'https://api.example.com',
-    applicationId: 'your-app-id',
-    apiKey: 'your-api-key',
+    headers: { 'X-Access-Key': 'your-api-key' },
 });
 
 function Root() {
