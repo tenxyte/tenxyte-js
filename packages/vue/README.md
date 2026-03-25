@@ -199,4 +199,4 @@ The `tenxytePlugin` provides the `TenxyteClient` instance via Vue's dependency i
 
 ## License
 
-MIT
+MIT — see [LICENSE](./LICENSE)

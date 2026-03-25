@@ -384,16 +384,16 @@ const state = await tx.getState();
 
 ---
 
-## Migration Guide: v0.9 → v1.0
+## Migration Guide: v0.8 → v0.9
 
 ### Breaking Changes
 
 1. **Constructor signature changed** — The client now accepts a `TenxyteClientConfig` object:
    ```typescript
-   // Before (v0.9)
+   // Before (v0.8)
    const tx = new TenxyteClient({ baseUrl: '...', headers: { ... } });
 
-   // After (v1.0) — same, but new options available
+   // After (v0.9) — same, but new options available
    const tx = new TenxyteClient({
        baseUrl: '...',
        headers: { ... },
@@ -405,10 +405,10 @@ const state = await tx.getState();
 
 2. **`loginWithEmail` now requires `device_info`**:
    ```typescript
-   // Before (v0.9)
+   // Before (v0.8)
    await tx.auth.loginWithEmail({ email, password });
 
-   // After (v1.0)
+   // After (v0.9)
    await tx.auth.loginWithEmail({ email, password, device_info: '' });
    ```
 
@@ -427,7 +427,7 @@ const state = await tx.getState();
 
 6. **`register()` return type changed** — Now returns `RegisterResponse` (may include tokens if auto-login is enabled).
 
-### New Features in v1.0
+### New Features in v0.9
 
 - Auto-refresh interceptor (silent 401 → refresh → retry)
 - Configurable retry with exponential backoff (429/5xx)

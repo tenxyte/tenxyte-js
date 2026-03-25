@@ -189,4 +189,4 @@ function AdminPanel() {
 
 ## License
 
-MIT
+MIT — see [LICENSE](./LICENSE)
