@@ -9,14 +9,13 @@ on:
       - main
 
 jobs:
-  build_and_test:
-    name: Build & Test
+  # ── Core ──────────────────────────────────────────────
+  core:
+    name: Core — Lint, Test & Build
     runs-on: ubuntu-latest
-    
     defaults:
       run:
         working-directory: ./packages/core
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -28,7 +27,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: './packages/core/package-lock.json'
 
-      - name: Install Package Dependencies
+      - name: Install Dependencies
         run: npm ci
 
       - name: Lint
@@ -37,8 +36,83 @@ jobs:
       - name: Type Check
         run: npm run typecheck
 
-      - name: Run Tests (Vitest)
+      - name: Run Tests
         run: npm run test
 
-      - name: Build Library (tsup)
+      - name: Build
+        run: npm run build
+
+      - name: Upload Core Dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-dist
+          path: packages/core/dist
+          retention-days: 1
+
+  # ── React ─────────────────────────────────────────────
+  react:
+    name: React — Build
+    runs-on: ubuntu-latest
+    needs: core
+    defaults:
+      run:
+        working-directory: ./packages/react
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'npm'
+          cache-dependency-path: './packages/react/package-lock.json'
+
+      - name: Download Core Dist
+        uses: actions/download-artifact@v4
+        with:
+          name: core-dist
+          path: packages/core/dist
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Type Check
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+  # ── Vue ───────────────────────────────────────────────
+  vue:
+    name: Vue — Build
+    runs-on: ubuntu-latest
+    needs: core
+    defaults:
+      run:
+        working-directory: ./packages/vue
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'npm'
+          cache-dependency-path: './packages/vue/package-lock.json'
+
+      - name: Download Core Dist
+        uses: actions/download-artifact@v4
+        with:
+          name: core-dist
+          path: packages/core/dist
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Type Check
+        run: npm run typecheck
+
+      - name: Build
         run: npm run build

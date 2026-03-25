@@ -20,24 +20,175 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var index_exports = {};
 __export(index_exports, {
+  AdminModule: () => AdminModule,
+  AiModule: () => AiModule,
+  ApplicationsModule: () => ApplicationsModule,
   AuthModule: () => AuthModule,
+  B2bModule: () => B2bModule,
+  CookieStorage: () => CookieStorage,
+  DashboardModule: () => DashboardModule,
+  EventEmitter: () => EventEmitter,
+  GdprModule: () => GdprModule,
+  LocalStorage: () => LocalStorage,
+  MemoryStorage: () => MemoryStorage,
+  NOOP_LOGGER: () => NOOP_LOGGER,
   RbacModule: () => RbacModule,
+  SDK_VERSION: () => SDK_VERSION,
   SecurityModule: () => SecurityModule,
   TenxyteClient: () => TenxyteClient,
   TenxyteHttpClient: () => TenxyteHttpClient,
-  UserModule: () => UserModule
+  UserModule: () => UserModule,
+  buildDeviceInfo: () => buildDeviceInfo,
+  createAuthInterceptor: () => createAuthInterceptor,
+  createDeviceInfoInterceptor: () => createDeviceInfoInterceptor,
+  createRefreshInterceptor: () => createRefreshInterceptor,
+  createRetryInterceptor: () => createRetryInterceptor,
+  decodeJwt: () => decodeJwt,
+  resolveConfig: () => resolveConfig
 });
 module.exports = __toCommonJS(index_exports);
+
+// src/storage/memory.ts
+var MemoryStorage = class {
+  store;
+  constructor() {
+    this.store = /* @__PURE__ */ new Map();
+  }
+  getItem(key) {
+    const value = this.store.get(key);
+    return value !== void 0 ? value : null;
+  }
+  setItem(key, value) {
+    this.store.set(key, value);
+  }
+  removeItem(key) {
+    this.store.delete(key);
+  }
+  clear() {
+    this.store.clear();
+  }
+};
+
+// src/storage/localStorage.ts
+var LocalStorage = class {
+  fallbackMemoryStore = null;
+  isAvailable;
+  constructor() {
+    this.isAvailable = this.checkAvailability();
+    if (!this.isAvailable) {
+      this.fallbackMemoryStore = new MemoryStorage();
+    }
+  }
+  checkAvailability() {
+    try {
+      if (typeof window === "undefined" || !window.localStorage) {
+        return false;
+      }
+      const testKey = "__tenxyte_test__";
+      window.localStorage.setItem(testKey, "1");
+      window.localStorage.removeItem(testKey);
+      return true;
+    } catch (_e) {
+      return false;
+    }
+  }
+  getItem(key) {
+    if (!this.isAvailable && this.fallbackMemoryStore) {
+      return this.fallbackMemoryStore.getItem(key);
+    }
+    return window.localStorage.getItem(key);
+  }
+  setItem(key, value) {
+    if (!this.isAvailable && this.fallbackMemoryStore) {
+      this.fallbackMemoryStore.setItem(key, value);
+      return;
+    }
+    try {
+      window.localStorage.setItem(key, value);
+    } catch (_e) {
+      console.warn(`[Tenxyte SDK] Warning: failed to write to localStorage for key ${key}`);
+    }
+  }
+  removeItem(key) {
+    if (!this.isAvailable && this.fallbackMemoryStore) {
+      this.fallbackMemoryStore.removeItem(key);
+      return;
+    }
+    window.localStorage.removeItem(key);
+  }
+  clear() {
+    if (!this.isAvailable && this.fallbackMemoryStore) {
+      this.fallbackMemoryStore.clear();
+      return;
+    }
+    window.localStorage.clear();
+  }
+};
+
+// src/storage/cookie.ts
+var CookieStorage = class {
+  defaultOptions;
+  constructor(options = {}) {
+    const secure = options.secure ?? true;
+    const sameSite = options.sameSite ?? "Lax";
+    this.defaultOptions = `path=/; SameSite=${sameSite}${secure ? "; Secure" : ""}`;
+  }
+  getItem(key) {
+    if (typeof document === "undefined") return null;
+    const match = document.cookie.match(new RegExp(`(^| )${key}=([^;]+)`));
+    return match ? decodeURIComponent(match[2]) : null;
+  }
+  setItem(key, value) {
+    if (typeof document === "undefined") return;
+    document.cookie = `${key}=${encodeURIComponent(value)}; ${this.defaultOptions}`;
+  }
+  removeItem(key) {
+    if (typeof document === "undefined") return;
+    document.cookie = `${key}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+  }
+  clear() {
+    this.removeItem("tx_access");
+    this.removeItem("tx_refresh");
+  }
+};
+
+// src/config.ts
+var SDK_VERSION = "0.9.0";
+var NOOP_LOGGER = {
+  debug() {
+  },
+  warn() {
+  },
+  error() {
+  }
+};
+function resolveConfig(config) {
+  return {
+    baseUrl: config.baseUrl,
+    headers: config.headers ?? {},
+    storage: config.storage ?? new MemoryStorage(),
+    autoRefresh: config.autoRefresh ?? true,
+    autoDeviceInfo: config.autoDeviceInfo ?? true,
+    timeoutMs: config.timeoutMs,
+    onSessionExpired: config.onSessionExpired,
+    logger: config.logger ?? NOOP_LOGGER,
+    logLevel: config.logLevel ?? "silent",
+    deviceInfoOverride: config.deviceInfoOverride,
+    retryConfig: config.retryConfig
+  };
+}
 
 // src/http/client.ts
 var TenxyteHttpClient = class {
   baseUrl;
   defaultHeaders;
+  timeoutMs;
   // Interceptors
   requestInterceptors = [];
   responseInterceptors = [];
   constructor(options) {
     this.baseUrl = options.baseUrl.replace(/\/$/, "");
+    this.timeoutMs = options.timeoutMs;
     this.defaultHeaders = {
       "Content-Type": "application/json",
       Accept: "application/json",
@@ -56,7 +207,7 @@ var TenxyteHttpClient = class {
    */
   async request(endpoint, config = {}) {
     const urlStr = endpoint.startsWith("http") ? endpoint : `${this.baseUrl}${endpoint.startsWith("/") ? "" : "/"}${endpoint}`;
-    let urlObj = new URL(urlStr);
+    const urlObj = new URL(urlStr);
     if (config.params) {
       Object.entries(config.params).forEach(([key, value]) => {
         if (value !== void 0 && value !== null) {
@@ -83,6 +234,13 @@ var TenxyteHttpClient = class {
       requestContext = await interceptor(requestContext);
     }
     const { url, ...fetchConfig } = requestContext;
+    let controller;
+    let timeoutId;
+    if (this.timeoutMs) {
+      controller = new AbortController();
+      fetchConfig.signal = controller.signal;
+      timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
+    }
     try {
       let response = await fetch(url, fetchConfig);
       for (const interceptor of this.responseInterceptors) {
@@ -100,6 +258,13 @@ var TenxyteHttpClient = class {
       }
       return await response.text();
     } catch (error) {
+      if (error?.name === "AbortError") {
+        throw {
+          error: `Request timed out after ${this.timeoutMs}ms`,
+          code: "TIMEOUT",
+          details: url
+        };
+      }
       if (error && error.code) {
         throw error;
       }
@@ -108,6 +273,10 @@ var TenxyteHttpClient = class {
         code: "NETWORK_ERROR",
         details: String(error)
       };
+    } finally {
+      if (timeoutId !== void 0) {
+        clearTimeout(timeoutId);
+      }
     }
   }
   async normalizeError(response) {
@@ -119,7 +288,7 @@ var TenxyteHttpClient = class {
         details: body.details || body,
         retry_after: response.headers.has("Retry-After") ? parseInt(response.headers.get("Retry-After"), 10) : void 0
       };
-    } catch (e) {
+    } catch (_e) {
       return {
         error: `HTTP Error ${response.status}: ${response.statusText}`,
         code: `HTTP_${response.status}`
@@ -139,15 +308,248 @@ var TenxyteHttpClient = class {
   patch(endpoint, data, config) {
     return this.request(endpoint, { ...config, method: "PATCH", body: data });
   }
-  delete(endpoint, config) {
-    return this.request(endpoint, { ...config, method: "DELETE" });
+  delete(endpoint, data, config) {
+    return this.request(endpoint, { ...config, method: "DELETE", body: data });
   }
 };
 
+// src/utils/device_info.ts
+function buildDeviceInfo(customInfo = {}) {
+  const autoInfo = getAutoInfo();
+  const v = "1";
+  const os = customInfo.os || autoInfo.os;
+  const osv = customInfo.osVersion || autoInfo.osVersion;
+  const device = customInfo.device || autoInfo.device;
+  const arch = customInfo.arch || autoInfo.arch;
+  const app = customInfo.app || autoInfo.app;
+  const appv = customInfo.appVersion || autoInfo.appVersion;
+  const runtime = customInfo.runtime || autoInfo.runtime;
+  const rtv = customInfo.runtimeVersion || autoInfo.runtimeVersion;
+  const tz = customInfo.timezone || autoInfo.timezone;
+  const parts = [
+    `v=${v}`,
+    `os=${os}` + (osv ? `;osv=${osv}` : ""),
+    `device=${device}`,
+    arch ? `arch=${arch}` : "",
+    app ? `app=${app}${appv ? `;appv=${appv}` : ""}` : "",
+    `runtime=${runtime}` + (rtv ? `;rtv=${rtv}` : ""),
+    tz ? `tz=${tz}` : ""
+  ];
+  return parts.filter(Boolean).join("|");
+}
+function getAutoInfo() {
+  const info = {
+    os: "unknown",
+    osVersion: "",
+    device: "desktop",
+    // default
+    arch: "",
+    app: "sdk",
+    appVersion: "0.1.0",
+    runtime: "unknown",
+    runtimeVersion: "",
+    timezone: ""
+  };
+  try {
+    if (typeof Intl !== "undefined") {
+      info.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    }
+    if (typeof process !== "undefined" && process.version) {
+      info.runtime = "node";
+      info.runtimeVersion = process.version;
+      info.os = process.platform;
+      info.arch = process.arch;
+      info.device = "server";
+    } else if (typeof window !== "undefined" && window.navigator) {
+      const ua = window.navigator.userAgent.toLowerCase();
+      if (ua.includes("windows")) info.os = "windows";
+      else if (ua.includes("mac")) info.os = "macos";
+      else if (ua.includes("linux")) info.os = "linux";
+      else if (ua.includes("android")) info.os = "android";
+      else if (ua.includes("ios") || ua.includes("iphone") || ua.includes("ipad")) info.os = "ios";
+      if (/mobi|android|touch|mini/i.test(ua)) info.device = "mobile";
+      if (/tablet|ipad/i.test(ua)) info.device = "tablet";
+      if (ua.includes("firefox")) info.runtime = "firefox";
+      else if (ua.includes("edg/")) info.runtime = "edge";
+      else if (ua.includes("chrome")) info.runtime = "chrome";
+      else if (ua.includes("safari")) info.runtime = "safari";
+    }
+  } catch (_e) {
+  }
+  return info;
+}
+
+// src/http/interceptors.ts
+function createAuthInterceptor(storage, context) {
+  return async (request) => {
+    const token = await storage.getItem("tx_access");
+    const headers = { ...request.headers || {} };
+    if (token && !headers["Authorization"]) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    if (context.activeOrgSlug && !headers["X-Org-Slug"]) {
+      headers["X-Org-Slug"] = context.activeOrgSlug;
+    }
+    if (context.agentTraceId && !headers["X-Prompt-Trace-ID"]) {
+      headers["X-Prompt-Trace-ID"] = context.agentTraceId;
+    }
+    return { ...request, headers };
+  };
+}
+function createRefreshInterceptor(client, storage, onSessionExpired, onTokenRefreshed) {
+  let isRefreshing = false;
+  let refreshQueue = [];
+  const processQueue = (error, token = null) => {
+    refreshQueue.forEach((prom) => prom(token));
+    refreshQueue = [];
+  };
+  return async (response, request) => {
+    if (response.status === 401 && !request.url.includes("/auth/refresh") && !request.url.includes("/auth/login")) {
+      const refreshToken = await storage.getItem("tx_refresh");
+      if (!refreshToken) {
+        onSessionExpired();
+        return response;
+      }
+      if (isRefreshing) {
+        return new Promise((resolve) => {
+          refreshQueue.push((newToken) => {
+            if (newToken) {
+              const retryHeaders = { ...request.config.headers, Authorization: `Bearer ${newToken}` };
+              resolve(fetch(request.url, { ...request.config, headers: retryHeaders }));
+            } else {
+              resolve(response);
+            }
+          });
+        });
+      }
+      isRefreshing = true;
+      try {
+        const refreshResponse = await fetch(`${client["baseUrl"]}/auth/refresh/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh_token: refreshToken })
+        });
+        if (!refreshResponse.ok) {
+          throw new Error("Refresh failed");
+        }
+        const data = await refreshResponse.json();
+        await storage.setItem("tx_access", data.access);
+        if (data.refresh) {
+          await storage.setItem("tx_refresh", data.refresh);
+        }
+        isRefreshing = false;
+        onTokenRefreshed?.(data.access, data.refresh);
+        processQueue(null, data.access);
+        const retryHeaders = { ...request.config.headers, Authorization: `Bearer ${data.access}` };
+        const r = await fetch(request.url, { ...request.config, headers: retryHeaders });
+        return r;
+      } catch (err) {
+        isRefreshing = false;
+        await storage.removeItem("tx_access");
+        await storage.removeItem("tx_refresh");
+        processQueue(err, null);
+        onSessionExpired();
+        return response;
+      }
+    }
+    return response;
+  };
+}
+var DEVICE_INFO_ENDPOINTS = [
+  "/login/email/",
+  "/login/phone/",
+  "/register/",
+  "/social/"
+];
+var DEFAULT_RETRY = {
+  maxRetries: 3,
+  retryOn429: true,
+  retryOnNetworkError: true,
+  baseDelayMs: 1e3
+};
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+function createRetryInterceptor(config = {}, logger) {
+  const opts = { ...DEFAULT_RETRY, ...config };
+  return async (response, request) => {
+    const shouldRetry429 = opts.retryOn429 && response.status === 429;
+    const shouldRetryServer = response.status >= 500;
+    if (!shouldRetry429 && !shouldRetryServer) {
+      return response;
+    }
+    let lastResponse = response;
+    for (let attempt = 1; attempt <= opts.maxRetries; attempt++) {
+      let delayMs = opts.baseDelayMs * Math.pow(2, attempt - 1);
+      const retryAfter = lastResponse.headers.get("Retry-After");
+      if (retryAfter) {
+        const parsed = Number(retryAfter);
+        if (!isNaN(parsed)) {
+          delayMs = parsed * 1e3;
+        }
+      }
+      logger?.debug(`[Tenxyte Retry] Attempt ${attempt}/${opts.maxRetries} after ${delayMs}ms for ${request.url}`);
+      await sleep(delayMs);
+      try {
+        const retryResponse = await fetch(request.url, request.config);
+        if (retryResponse.status === 429 && opts.retryOn429 && attempt < opts.maxRetries) {
+          lastResponse = retryResponse;
+          continue;
+        }
+        if (retryResponse.status >= 500 && attempt < opts.maxRetries) {
+          lastResponse = retryResponse;
+          continue;
+        }
+        return retryResponse;
+      } catch (err) {
+        if (!opts.retryOnNetworkError || attempt >= opts.maxRetries) {
+          throw err;
+        }
+        logger?.warn(`[Tenxyte Retry] Network error on attempt ${attempt}/${opts.maxRetries}`, err);
+      }
+    }
+    return lastResponse;
+  };
+}
+function createDeviceInfoInterceptor(override) {
+  const fingerprint = buildDeviceInfo(override);
+  return (request) => {
+    const isPost = !request.method || request.method === "POST";
+    const matchesEndpoint = DEVICE_INFO_ENDPOINTS.some((ep) => request.url.includes(ep));
+    if (isPost && matchesEndpoint && request.body && typeof request.body === "object") {
+      const body = request.body;
+      if (!body.device_info) {
+        return { ...request, body: { ...body, device_info: fingerprint } };
+      }
+    }
+    return request;
+  };
+}
+
 // src/modules/auth.ts
 var AuthModule = class {
-  constructor(client) {
+  constructor(client, storage, onTokens, onLogout) {
     this.client = client;
+    this.storage = storage;
+    this.onTokens = onTokens;
+    this.onLogout = onLogout;
+  }
+  async clearTokens() {
+    if (this.storage) {
+      await this.storage.removeItem("tx_access");
+      await this.storage.removeItem("tx_refresh");
+      this.onLogout?.();
+    }
+  }
+  async persistTokens(tokens) {
+    if (this.storage) {
+      await this.storage.setItem("tx_access", tokens.access_token);
+      if (tokens.refresh_token) {
+        await this.storage.setItem("tx_refresh", tokens.refresh_token);
+      }
+      this.onTokens?.(tokens.access_token, tokens.refresh_token);
+    }
+    return tokens;
   }
   /**
    * Authenticate a user with their email and password.
@@ -156,7 +558,8 @@ var AuthModule = class {
    * @throws {TenxyteError} If credentials are invalid, or if `2FA_REQUIRED` without a valid `totp_code`.
    */
   async loginWithEmail(data) {
-    return this.client.post("/api/v1/auth/login/email/", data);
+    const tokens = await this.client.post("/api/v1/auth/login/email/", data);
+    return this.persistTokens(tokens);
   }
   /**
    * Authenticate a user with an international phone number and password.
@@ -164,7 +567,8 @@ var AuthModule = class {
    * @returns A pair of Access and Refresh tokens.
    */
   async loginWithPhone(data) {
-    return this.client.post("/api/v1/auth/login/phone/", data);
+    const tokens = await this.client.post("/api/v1/auth/login/phone/", data);
+    return this.persistTokens(tokens);
   }
   /**
    * Registers a new user account.
@@ -172,7 +576,11 @@ var AuthModule = class {
    * @returns The registered user data or a confirmation message.
    */
   async register(data) {
-    return this.client.post("/api/v1/auth/register/", data);
+    const result = await this.client.post("/api/v1/auth/register/", data);
+    if (result?.access_token) {
+      await this.persistTokens(result);
+    }
+    return result;
   }
   /**
    * Logout from the current session.
@@ -180,14 +588,26 @@ var AuthModule = class {
    * @param refreshToken - The refresh token to revoke.
    */
   async logout(refreshToken) {
-    return this.client.post("/api/v1/auth/logout/", { refresh_token: refreshToken });
+    await this.client.post("/api/v1/auth/logout/", { refresh_token: refreshToken });
+    await this.clearTokens();
   }
   /**
    * Logout from all sessions across all devices.
    * Revokes all refresh tokens currently assigned to the user.
    */
   async logoutAll() {
-    return this.client.post("/api/v1/auth/logout/all/");
+    await this.client.post("/api/v1/auth/logout/all/");
+    await this.clearTokens();
+  }
+  /**
+   * Manually refresh the access token using a valid refresh token.
+   * The refresh token is automatically rotated for improved security.
+   * @param refreshToken - The current refresh token.
+   * @returns A new token pair (access + rotated refresh).
+   */
+  async refreshToken(refreshToken) {
+    const tokens = await this.client.post("/api/v1/auth/refresh/", { refresh_token: refreshToken });
+    return this.persistTokens(tokens);
   }
   /**
    * Request a Magic Link for passwordless sign-in.
@@ -202,7 +622,8 @@ var AuthModule = class {
    * @returns A session token pair if the token is valid and unexpired.
    */
   async verifyMagicLink(token) {
-    return this.client.get(`/api/v1/auth/magic-link/verify/`, { params: { token } });
+    const tokens = await this.client.get(`/api/v1/auth/magic-link/verify/`, { params: { token } });
+    return this.persistTokens(tokens);
   }
   /**
    * Submits OAuth2 Social Authentication payloads to the backend.
@@ -212,7 +633,8 @@ var AuthModule = class {
    * @returns An active session token pair.
    */
   async loginWithSocial(provider, data) {
-    return this.client.post(`/api/v1/auth/social/${provider}/`, data);
+    const tokens = await this.client.post(`/api/v1/auth/social/${provider}/`, data);
+    return this.persistTokens(tokens);
   }
   /**
    * Handle Social Auth Callbacks (Authorization Code flow).
@@ -222,9 +644,10 @@ var AuthModule = class {
    * @returns An active session token pair after successful code exchange.
    */
   async handleSocialCallback(provider, code, redirectUri) {
-    return this.client.get(`/api/v1/auth/social/${provider}/callback/`, {
+    const tokens = await this.client.get(`/api/v1/auth/social/${provider}/callback/`, {
       params: { code, redirect_uri: redirectUri }
     });
+    return this.persistTokens(tokens);
   }
 };
 
@@ -446,7 +869,7 @@ function decodeJwt(token) {
     if (parts.length !== 3) {
       return null;
     }
-    let base64Url = parts[1];
+    const base64Url = parts[1];
     if (!base64Url) return null;
     let base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
     while (base64.length % 4) {
@@ -462,7 +885,7 @@ function decodeJwt(token) {
       jsonPayload = Buffer.from(base64, "base64").toString("utf8");
     }
     return JSON.parse(jsonPayload);
-  } catch (e) {
+  } catch (_e) {
     return null;
   }
 }
@@ -569,12 +992,7 @@ var RbacModule = class {
     return this.client.post(`/api/v1/auth/roles/${roleId}/permissions/`, { permission_codes });
   }
   async removePermissionsFromRole(roleId, permission_codes) {
-    return this.client.delete(`/api/v1/auth/roles/${roleId}/permissions/`, {
-      // Note: DELETE request with body is supported via our fetch wrapper if enabled,
-      // or we might need to rely on query strings. The schema specifies body or query.
-      // Let's pass it in body via a custom config or URL params.
-      body: { permission_codes }
-    });
+    return this.client.delete(`/api/v1/auth/roles/${roleId}/permissions/`, { permission_codes });
   }
   // --- Permissions CRUD --- //
   /** Enumerates all available fine-grained Permissions inside this Tenant scope. */
@@ -599,6 +1017,20 @@ var RbacModule = class {
   }
   // --- Direct Assignment (Users) --- //
   /**
+   * Retrieve all roles assigned to a specific user.
+   * @param userId - The target user ID.
+   */
+  async getUserRoles(userId) {
+    return this.client.get(`/api/v1/auth/users/${userId}/roles/`);
+  }
+  /**
+   * Retrieve all permissions directly assigned to a specific user (excluding role-based permissions).
+   * @param userId - The target user ID.
+   */
+  async getUserPermissions(userId) {
+    return this.client.get(`/api/v1/auth/users/${userId}/permissions/`);
+  }
+  /**
    * Attach a given Role globally to a user entity.
    * Use sparingly if B2B multi-tenancy contexts are preferred.
    */
@@ -609,7 +1041,7 @@ var RbacModule = class {
    * Unbind a global Role from a user entity.
    */
   async removeRoleFromUser(userId, roleCode) {
-    return this.client.delete(`/api/v1/auth/users/${userId}/roles/`, {
+    return this.client.delete(`/api/v1/auth/users/${userId}/roles/`, void 0, {
       params: { role_code: roleCode }
     });
   }
@@ -623,9 +1055,7 @@ var RbacModule = class {
    * Ad-Hoc strip direct granular Permissions bindings from a specific User.
    */
   async removePermissionsFromUser(userId, permissionCodes) {
-    return this.client.delete(`/api/v1/auth/users/${userId}/permissions/`, {
-      body: { permission_codes: permissionCodes }
-    });
+    return this.client.delete(`/api/v1/auth/users/${userId}/permissions/`, { permission_codes: permissionCodes });
   }
 };
 
@@ -652,6 +1082,7 @@ var UserModule = class {
     return this.client.patch("/api/v1/auth/me/", formData);
   }
   /**
+   * @deprecated Use `gdpr.requestAccountDeletion()` instead. This proxy will be removed in a future release.
    * Trigger self-deletion of an entire account data boundary.
    * @param password - Requires the active system password as destructive proof of intent.
    * @param otpCode - (Optional) If an OTP was queried prior to attempting account deletion.
@@ -661,6 +1092,13 @@ var UserModule = class {
       password,
       otp_code: otpCode
     });
+  }
+  /**
+   * Retrieve the roles and permissions of the currently authenticated user.
+   * @returns An object containing `roles[]` and `permissions[]`.
+   */
+  async getMyRoles() {
+    return this.client.get("/api/v1/auth/me/roles/");
   }
   // --- Admin Actions Mapping --- //
   /** (Admin only) Lists users paginated matching criteria. */
@@ -786,8 +1224,9 @@ var B2bModule = class {
 
 // src/modules/ai.ts
 var AiModule = class {
-  constructor(client) {
+  constructor(client, logger) {
     this.client = client;
+    this.logger = logger;
     this.client.addRequestInterceptor((config) => {
       const headers = { ...config.headers };
       if (this.agentToken) {
@@ -798,12 +1237,12 @@ var AiModule = class {
       }
       return { ...config, headers };
     });
-    this.client.addResponseInterceptor(async (response, request) => {
+    this.client.addResponseInterceptor(async (response, _request) => {
       if (response.status === 202) {
         const cloned = response.clone();
         try {
           const data = await cloned.json();
-          console.debug("[Tenxyte AI] Received 202 Awaiting Approval:", data);
+          this.logger?.debug("[Tenxyte AI] Received 202 Awaiting Approval:", data);
         } catch {
         }
       } else if (response.status === 403) {
@@ -811,9 +1250,9 @@ var AiModule = class {
         try {
           const data = await cloned.json();
           if (data.code === "BUDGET_EXCEEDED") {
-            console.warn("[Tenxyte AI] Network responded with Budget Exceeded for Agent.");
+            this.logger?.warn("[Tenxyte AI] Network responded with Budget Exceeded for Agent.");
           } else if (data.status === "suspended") {
-            console.warn("[Tenxyte AI] Circuit breaker open for Agent.");
+            this.logger?.warn("[Tenxyte AI] Circuit breaker open for Agent.");
           }
         } catch {
         }
@@ -823,6 +1262,7 @@ var AiModule = class {
   }
   agentToken = null;
   traceId = null;
+  logger;
   // ─── AgentToken Lifecycle ───
   /**
    * Create an AgentToken granting specific deterministic limits to an AI Agent.
@@ -902,8 +1342,340 @@ var AiModule = class {
   }
 };
 
+// src/modules/applications.ts
+var ApplicationsModule = class {
+  constructor(client) {
+    this.client = client;
+  }
+  /**
+   * List all registered applications (paginated).
+   * @param params - Optional filters: `search`, `is_active`, `ordering`, `page`, `page_size`.
+   * @returns A paginated list of applications.
+   */
+  async listApplications(params) {
+    return this.client.get("/api/v1/auth/applications/", {
+      params
+    });
+  }
+  /**
+   * Create a new application.
+   * @param data - The application name and optional description.
+   * @returns The created application including one-time `client_secret`.
+   */
+  async createApplication(data) {
+    return this.client.post("/api/v1/auth/applications/", data);
+  }
+  /**
+   * Get a single application by its ID.
+   * @param appId - The application ID.
+   * @returns The application details (secret is never included).
+   */
+  async getApplication(appId) {
+    return this.client.get(`/api/v1/auth/applications/${appId}/`);
+  }
+  /**
+   * Fully update an application (PUT — all fields replaced).
+   * @param appId - The application ID.
+   * @param data - The full updated application data.
+   * @returns The updated application.
+   */
+  async updateApplication(appId, data) {
+    return this.client.put(`/api/v1/auth/applications/${appId}/`, data);
+  }
+  /**
+   * Partially update an application (PATCH — only provided fields are changed).
+   * @param appId - The application ID.
+   * @param data - The fields to update.
+   * @returns The updated application.
+   */
+  async patchApplication(appId, data) {
+    return this.client.patch(`/api/v1/auth/applications/${appId}/`, data);
+  }
+  /**
+   * Delete an application permanently.
+   * @param appId - The application ID.
+   */
+  async deleteApplication(appId) {
+    return this.client.delete(`/api/v1/auth/applications/${appId}/`);
+  }
+  /**
+   * Regenerate credentials for an application.
+   * **Warning:** Old credentials are immediately invalidated. The new secret is shown only once.
+   * @param appId - The application ID.
+   * @param confirmation - Must be the string `"REGENERATE"` to confirm the irreversible action.
+   * @returns The new credentials (access_key + access_secret shown once).
+   */
+  async regenerateCredentials(appId, confirmation = "REGENERATE") {
+    return this.client.post(`/api/v1/auth/applications/${appId}/regenerate/`, { confirmation });
+  }
+};
+
+// src/modules/admin.ts
+var AdminModule = class {
+  constructor(client) {
+    this.client = client;
+  }
+  // ─── Audit Logs ───
+  /**
+   * List audit log entries (paginated).
+   * @param params - Optional filters and pagination.
+   */
+  async listAuditLogs(params) {
+    return this.client.get("/api/v1/auth/admin/audit-logs/", {
+      params
+    });
+  }
+  /**
+   * Get a single audit log entry by ID.
+   * @param logId - The audit log entry ID.
+   */
+  async getAuditLog(logId) {
+    return this.client.get(`/api/v1/auth/admin/audit-logs/${logId}/`);
+  }
+  // ─── Login Attempts ───
+  /**
+   * List login attempt records (paginated).
+   * @param params - Optional filters and pagination.
+   */
+  async listLoginAttempts(params) {
+    return this.client.get("/api/v1/auth/admin/login-attempts/", {
+      params
+    });
+  }
+  // ─── Blacklisted Tokens ───
+  /**
+   * List blacklisted (revoked) JWT tokens (paginated).
+   * @param params - Optional filters and pagination.
+   */
+  async listBlacklistedTokens(params) {
+    return this.client.get("/api/v1/auth/admin/blacklisted-tokens/", {
+      params
+    });
+  }
+  /**
+   * Remove expired blacklisted tokens.
+   * @returns A summary object with cleanup results.
+   */
+  async cleanupBlacklistedTokens() {
+    return this.client.post("/api/v1/auth/admin/blacklisted-tokens/cleanup/");
+  }
+  // ─── Refresh Tokens ───
+  /**
+   * List refresh tokens (admin view — token values are hidden).
+   * @param params - Optional filters and pagination.
+   */
+  async listRefreshTokens(params) {
+    return this.client.get("/api/v1/auth/admin/refresh-tokens/", {
+      params
+    });
+  }
+  /**
+   * Revoke a specific refresh token.
+   * @param tokenId - The refresh token ID.
+   * @returns The updated refresh token record.
+   */
+  async revokeRefreshToken(tokenId) {
+    return this.client.post(`/api/v1/auth/admin/refresh-tokens/${tokenId}/revoke/`);
+  }
+};
+
+// src/modules/gdpr.ts
+var GdprModule = class {
+  constructor(client) {
+    this.client = client;
+  }
+  // ─── User-facing ───
+  /**
+   * Request account deletion (GDPR-compliant).
+   * Initiates a 30-day grace period during which the user can cancel.
+   * @param data - Password (+ optional OTP code and reason).
+   */
+  async requestAccountDeletion(data) {
+    return this.client.post("/api/v1/auth/request-account-deletion/", data);
+  }
+  /**
+   * Confirm the account deletion using the token received by email.
+   * The token is valid for 24 hours. After confirmation the account enters the 30-day grace period.
+   * @param token - The confirmation token from the email.
+   */
+  async confirmAccountDeletion(token) {
+    return this.client.post("/api/v1/auth/confirm-account-deletion/", { token });
+  }
+  /**
+   * Cancel a pending account deletion during the grace period.
+   * The account is immediately reactivated.
+   * @param password - The current password for security.
+   */
+  async cancelAccountDeletion(password) {
+    return this.client.post("/api/v1/auth/cancel-account-deletion/", { password });
+  }
+  /**
+   * Get the deletion status for the current user.
+   * Includes pending, confirmed, or cancelled requests.
+   */
+  async getAccountDeletionStatus() {
+    return this.client.get("/api/v1/auth/account-deletion-status/");
+  }
+  /**
+   * Export all personal data (GDPR right to data portability).
+   * @param password - The current password for security.
+   */
+  async exportUserData(password) {
+    return this.client.post("/api/v1/auth/export-user-data/", { password });
+  }
+  // ─── Admin-facing ───
+  /**
+   * List deletion requests (admin, paginated).
+   * @param params - Optional filters and pagination.
+   */
+  async listDeletionRequests(params) {
+    return this.client.get("/api/v1/auth/admin/deletion-requests/", {
+      params
+    });
+  }
+  /**
+   * Get a single deletion request by ID.
+   * @param requestId - The deletion request ID.
+   */
+  async getDeletionRequest(requestId) {
+    return this.client.get(`/api/v1/auth/admin/deletion-requests/${requestId}/`);
+  }
+  /**
+   * Process (execute) a confirmed deletion request.
+   * **WARNING:** This is irreversible and permanently destroys all user data.
+   * @param requestId - The deletion request ID.
+   * @param data - Must include `{ confirmation: "PERMANENTLY DELETE" }`.
+   */
+  async processDeletionRequest(requestId, data) {
+    return this.client.post(`/api/v1/auth/admin/deletion-requests/${requestId}/process/`, data);
+  }
+  /**
+   * Batch-process all confirmed deletion requests whose 30-day grace period has expired.
+   * Typically run by a daily cron job.
+   */
+  async processExpiredDeletions() {
+    return this.client.post("/api/v1/auth/admin/deletion-requests/process-expired/");
+  }
+};
+
+// src/modules/dashboard.ts
+var DashboardModule = class {
+  constructor(client) {
+    this.client = client;
+  }
+  /**
+   * Get global cross-module dashboard statistics.
+   * Data varies based on the organizational context (`X-Org-Slug`) and permissions.
+   * Covers users, authentication, applications, security, and GDPR metrics.
+   * Charts span the last 7 days with previous-period comparisons.
+   * @param params - Optional period and comparison flag.
+   */
+  async getStats(params) {
+    return this.client.get("/api/v1/auth/dashboard/stats/", {
+      params
+    });
+  }
+  /**
+   * Get authentication-specific statistics.
+   * Includes login stats, methods breakdown, registrations, tokens, top failure reasons, and 7-day graphs.
+   */
+  async getAuthStats() {
+    return this.client.get("/api/v1/auth/dashboard/auth/");
+  }
+  /**
+   * Get security-specific statistics.
+   * Includes audit summary, blacklisted tokens, suspicious activity, and 2FA adoption.
+   */
+  async getSecurityStats() {
+    return this.client.get("/api/v1/auth/dashboard/security/");
+  }
+  /**
+   * Get GDPR-specific statistics.
+   * Includes deletion requests by status and data export metrics.
+   */
+  async getGdprStats() {
+    return this.client.get("/api/v1/auth/dashboard/gdpr/");
+  }
+  /**
+   * Get organization-specific statistics.
+   * Includes organizations, members, roles, and top organizations.
+   */
+  async getOrganizationStats() {
+    return this.client.get("/api/v1/auth/dashboard/organizations/");
+  }
+};
+
+// src/utils/events.ts
+var EventEmitter = class {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+  events;
+  constructor() {
+    this.events = /* @__PURE__ */ new Map();
+  }
+  /**
+   * Subscribe to an event.
+   * @param event The event name
+   * @param callback The callback function
+   * @returns Unsubscribe function
+   */
+  on(event, callback) {
+    if (!this.events.has(event)) {
+      this.events.set(event, []);
+    }
+    this.events.get(event).push(callback);
+    return () => this.off(event, callback);
+  }
+  /**
+   * Unsubscribe from an event.
+   * @param event The event name
+   * @param callback The exact callback function that was passed to .on()
+   */
+  off(event, callback) {
+    const callbacks = this.events.get(event);
+    if (!callbacks) return;
+    const index = callbacks.indexOf(callback);
+    if (index !== -1) {
+      callbacks.splice(index, 1);
+    }
+  }
+  /**
+   * Subscribe to an event exactly once.
+   */
+  once(event, callback) {
+    const wrapped = (payload) => {
+      this.off(event, wrapped);
+      callback(payload);
+    };
+    return this.on(event, wrapped);
+  }
+  /**
+   * Emit an event internally.
+   */
+  emit(event, payload) {
+    const callbacks = this.events.get(event);
+    if (!callbacks) return;
+    const copy = [...callbacks];
+    for (const callback of copy) {
+      try {
+        callback(payload);
+      } catch (err) {
+        console.error(`[Tenxyte EventEmitter] Error executing callback for event ${String(event)}`, err);
+      }
+    }
+  }
+  removeAllListeners() {
+    this.events.clear();
+  }
+};
+
 // src/client.ts
 var TenxyteClient = class {
+  /** Fully resolved configuration (all defaults applied). */
+  config;
+  /** Persistent token storage back-end (defaults to MemoryStorage). */
+  storage;
+  /** Shared mutable context used by interceptors (org slug, agent trace ID). */
+  context;
   /** The core HTTP wrapper handling network interception and parsing */
   http;
   /** Authentication module (Login, Signup, Magic link, session handling) */
@@ -918,8 +1690,22 @@ var TenxyteClient = class {
   b2b;
   /** AIRS - AI Responsibility & Security module (Agent tokens, Circuit breakers, HITL) */
   ai;
+  /** Applications module (API client CRUD, credential management) */
+  applications;
+  /** Admin module (audit logs, login attempts, blacklisted tokens, refresh tokens) */
+  admin;
+  /** GDPR module (account deletion, data export, deletion request management) */
+  gdpr;
+  /** Dashboard module (global, auth, security, GDPR, organization statistics) */
+  dashboard;
+  /** Internal event emitter used via composition. */
+  emitter;
   /**
    * Initializes the SDK with connection details for your Tenxyte-powered API.
+   *
+   * Accepts the full TenxyteClientConfig. Minimal usage with just { baseUrl }
+   * is still supported for backward compatibility.
+   *
    * @param options Configuration options including `baseUrl` and custom headers like `X-Access-Key`
    * 
    * @example
@@ -931,22 +1717,166 @@ var TenxyteClient = class {
    * ```
    */
   constructor(options) {
-    this.http = new TenxyteHttpClient(options);
-    this.auth = new AuthModule(this.http);
-    this.security = new SecurityModule(this.http);
+    this.config = resolveConfig(options);
+    this.storage = this.config.storage;
+    this.emitter = new EventEmitter();
+    this.context = { activeOrgSlug: null, agentTraceId: null };
+    this.http = new TenxyteHttpClient({
+      baseUrl: this.config.baseUrl,
+      headers: this.config.headers,
+      timeoutMs: this.config.timeoutMs
+    });
+    this.http.addRequestInterceptor(createAuthInterceptor(this.storage, this.context));
+    if (this.config.autoDeviceInfo) {
+      this.http.addRequestInterceptor(createDeviceInfoInterceptor(this.config.deviceInfoOverride));
+    }
+    if (this.config.retryConfig) {
+      this.http.addResponseInterceptor(
+        createRetryInterceptor(this.config.retryConfig, this.config.logger)
+      );
+    }
+    if (this.config.autoRefresh) {
+      this.http.addResponseInterceptor(
+        createRefreshInterceptor(
+          this.http,
+          this.storage,
+          () => {
+            this.emit("session:expired", void 0);
+            this.config.onSessionExpired?.();
+          },
+          (accessToken, refreshToken) => {
+            this.rbac.setToken(accessToken);
+            this.emit("token:refreshed", { accessToken });
+            this.emit("token:stored", { accessToken, refreshToken });
+          }
+        )
+      );
+    }
     this.rbac = new RbacModule(this.http);
+    this.auth = new AuthModule(
+      this.http,
+      this.storage,
+      (accessToken, refreshToken) => {
+        this.rbac.setToken(accessToken);
+        this.emit("token:stored", { accessToken, refreshToken });
+      },
+      () => {
+        this.rbac.setToken(null);
+        this.emit("session:expired", void 0);
+      }
+    );
+    this.security = new SecurityModule(this.http);
     this.user = new UserModule(this.http);
     this.b2b = new B2bModule(this.http);
-    this.ai = new AiModule(this.http);
+    this.ai = new AiModule(this.http, this.config.logger);
+    this.applications = new ApplicationsModule(this.http);
+    this.admin = new AdminModule(this.http);
+    this.gdpr = new GdprModule(this.http);
+    this.dashboard = new DashboardModule(this.http);
+  }
+  // ─── Event delegation ───
+  /** Subscribe to an SDK event. Returns an unsubscribe function. */
+  on(event, callback) {
+    return this.emitter.on(event, callback);
+  }
+  /** Subscribe to an SDK event exactly once. Returns an unsubscribe function. */
+  once(event, callback) {
+    return this.emitter.once(event, callback);
+  }
+  /** Unsubscribe a previously registered callback from an SDK event. */
+  off(event, callback) {
+    this.emitter.off(event, callback);
+  }
+  /** Emit an SDK event (internal use). */
+  emit(event, payload) {
+    this.emitter.emit(event, payload);
+  }
+  // ─── High-level helpers ───
+  /**
+   * Check whether a valid (non-expired) access token exists in storage.
+   * Performs a synchronous JWT expiry check — no network call.
+   */
+  async isAuthenticated() {
+    const token = await this.storage.getItem("tx_access");
+    if (!token) return false;
+    return !this.isTokenExpiredSync(token);
+  }
+  /**
+   * Return the current access token from storage, or `null` if absent.
+   */
+  async getAccessToken() {
+    return this.storage.getItem("tx_access");
+  }
+  /**
+   * Decode the current access token and return the JWT payload.
+   * Returns `null` if no token is stored or if decoding fails.
+   * No network call is made — this reads from the cached JWT.
+   */
+  async getCurrentUser() {
+    const token = await this.storage.getItem("tx_access");
+    if (!token) return null;
+    return decodeJwt(token);
+  }
+  /**
+   * Check whether the stored access token is expired without making a network call.
+   * Returns `true` if expired or if no token is present.
+   */
+  async isTokenExpired() {
+    const token = await this.storage.getItem("tx_access");
+    if (!token) return true;
+    return this.isTokenExpiredSync(token);
+  }
+  /** Synchronous helper: checks JWT `exp` claim against current time. */
+  isTokenExpiredSync(token) {
+    const decoded = decodeJwt(token);
+    if (!decoded?.exp) return true;
+    return decoded.exp * 1e3 < Date.now() - 3e4;
+  }
+  // ─── Framework wrapper interface ───
+  /**
+   * Returns a synchronous snapshot of the SDK state.
+   * Designed for consumption by framework wrappers (React, Vue, etc.).
+   * Note: This is async because storage access may be async.
+   */
+  async getState() {
+    const token = await this.storage.getItem("tx_access");
+    const isAuthenticated = token ? !this.isTokenExpiredSync(token) : false;
+    const user = token ? decodeJwt(token) : null;
+    return {
+      isAuthenticated,
+      user,
+      accessToken: token,
+      activeOrg: this.context.activeOrgSlug,
+      isAgentMode: this.ai.isAgentMode()
+    };
   }
 };
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  AdminModule,
+  AiModule,
+  ApplicationsModule,
   AuthModule,
+  B2bModule,
+  CookieStorage,
+  DashboardModule,
+  EventEmitter,
+  GdprModule,
+  LocalStorage,
+  MemoryStorage,
+  NOOP_LOGGER,
   RbacModule,
+  SDK_VERSION,
   SecurityModule,
   TenxyteClient,
   TenxyteHttpClient,
-  UserModule
+  UserModule,
+  buildDeviceInfo,
+  createAuthInterceptor,
+  createDeviceInfoInterceptor,
+  createRefreshInterceptor,
+  createRetryInterceptor,
+  decodeJwt,
+  resolveConfig
 });
 //# sourceMappingURL=index.cjs.map

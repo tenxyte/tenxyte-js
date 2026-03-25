@@ -3,14 +3,16 @@ import { TenxyteClient } from '@tenxyte/core'
 
 /**
  * Initialize the TenxyteClient
- * Make sure to replace `YOUR_APP_KEY` with your actual public Application Key.
+ * Make sure to replace env vars with your actual Application credentials.
  */
 const tx = new TenxyteClient({
-  baseUrl: import.meta.env.VITE_TENXYTE_BASE_URL,
-  headers: {
-    'X-Access-Key': import.meta.env.VITE_TENXYTE_ACCESS_KEY,
-    'X-Access-Secret': import.meta.env.VITE_TENXYTE_ACCESS_SECRET,
-  }
+    baseUrl: import.meta.env.VITE_TENXYTE_BASE_URL,
+    headers: {
+        'X-Access-Key': import.meta.env.VITE_TENXYTE_ACCESS_KEY,
+        'X-Access-Secret': import.meta.env.VITE_TENXYTE_ACCESS_SECRET,
+    },
+    autoRefresh: true,
+    autoDeviceInfo: true,
 });
 
 // UI Elements
@@ -52,8 +54,8 @@ const userInfoSection = document.querySelector<HTMLDivElement>('#user-info')!
 const profileDataPre = document.querySelector<HTMLPreElement>('#profile-data')!
 const eventLogPre = document.querySelector<HTMLPreElement>('#event-log')!
 
-// --- Event Listeners Example ---
-function logEvent(name: string, payload?: any) {
+// --- Event Listeners ---
+function logEvent(name: string, payload?: unknown) {
     eventLogPre.textContent += `[${new Date().toLocaleTimeString()}] ${name}\n`;
     if (payload) eventLogPre.textContent += `${JSON.stringify(payload, null, 2)}\n`;
 }
@@ -63,23 +65,28 @@ tx.on('session:expired', () => {
     checkSession();
 });
 
-tx.on('request:error', (error) => {
-    logEvent('request:error', error);
+tx.on('token:refreshed', ({ accessToken }) => {
+    logEvent('token:refreshed', { accessToken: accessToken.slice(0, 20) + '...' });
+});
+
+tx.on('error', ({ error }) => {
+    logEvent('error', error);
 });
 
 // --- Actions ---
 
 async function checkSession() {
-    // If we have an active session, fetch profile and show User Info
-    if (tx.isAuthenticated()) {
+    const isLoggedIn = await tx.isAuthenticated();
+    if (isLoggedIn) {
         loginForm.style.display = 'none';
         userInfoSection.style.display = 'block';
 
         try {
-            const profile = await tx.users.getProfile();
+            const profile = await tx.user.getProfile();
             profileDataPre.textContent = JSON.stringify(profile, null, 2);
-        } catch (e: any) {
-            profileDataPre.textContent = 'Failed to load profile: ' + e.message;
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
+            profileDataPre.textContent = 'Failed to load profile: ' + msg;
         }
     } else {
         loginForm.style.display = 'block';
@@ -93,17 +100,19 @@ loginBtn.addEventListener('click', async () => {
         statusDiv.textContent = 'Logging in...';
         loginBtn.disabled = true;
 
-        const tokens = await tx.auth.loginWithEmail({
+        await tx.auth.loginWithEmail({
             email: emailInput.value,
-            password: passwordInput.value
+            password: passwordInput.value,
+            device_info: '',
         });
 
         statusDiv.textContent = '';
         logEvent('auth:login_success', { tokens_received: true });
 
-        checkSession();
-    } catch (error: any) {
-        statusDiv.textContent = 'Login failed: ' + (error.details || error.error || error.message);
+        await checkSession();
+    } catch (error: unknown) {
+        const err = error as Record<string, unknown>;
+        statusDiv.textContent = 'Login failed: ' + (err.details || err.error || err.message || 'Unknown error');
     } finally {
         loginBtn.disabled = false;
     }
@@ -111,13 +120,10 @@ loginBtn.addEventListener('click', async () => {
 
 logoutBtn.addEventListener('click', async () => {
     try {
-        // Perform remote logout. Since we pass the refresh token internally in production usually, 
-        // here we just use the raw token (note: local clear is often sufficient for client-side).
-        tx.clearSession(); // Immediately clears localStorage and headers
+        await tx.auth.logoutAll();
         logEvent('auth:logout', { message: 'Session cleared.' });
-
-        checkSession();
-    } catch (e: any) {
+        await checkSession();
+    } catch (e: unknown) {
         console.error('Logout error', e);
     }
 });

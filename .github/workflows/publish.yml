@@ -3,23 +3,25 @@ name: Publish to NPM
 on:
   push:
     tags:
-      - 'v*'
+      - 'v-tenxyte-core-*'
+      - 'v-tenxyte-react-*'
+      - 'v-tenxyte-vue-*'
 
 permissions:
   id-token: write
   contents: read
 
 jobs:
-  publish:
-    name: Publish Core SDK to NPM
+  # ── 1. Build & Publish Core ───────────────────────────
+  publish-core:
+    name: Publish @tenxyte/core
+    if: startsWith(github.ref, 'refs/tags/v-tenxyte-core-')
     runs-on: ubuntu-latest
     environment:
       name: npm
-    
     defaults:
       run:
         working-directory: ./packages/core
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -32,11 +34,83 @@ jobs:
           cache: 'npm'
           cache-dependency-path: './packages/core/package-lock.json'
 
-      - name: Install Package Dependencies
+      - name: Install Dependencies
         run: npm ci
 
-      - name: Build Project
+      - name: Build
         run: npm run build
 
-      - name: Publish Package
+      - name: Publish
         run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # ── 2. Build & Publish React ──────────────────────────
+  publish-react:
+    name: Publish @tenxyte/react
+    if: startsWith(github.ref, 'refs/tags/v-tenxyte-react-')
+    runs-on: ubuntu-latest
+    environment:
+      name: npm
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Build Core (local dependency)
+        run: npm ci && npm run build
+        working-directory: ./packages/core
+
+      - name: Install Dependencies
+        run: npm install
+        working-directory: ./packages/react
+
+      - name: Build
+        run: npm run build
+        working-directory: ./packages/react
+
+      - name: Publish
+        run: npm publish --access public --provenance
+        working-directory: ./packages/react
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # ── 3. Build & Publish Vue ────────────────────────────
+  publish-vue:
+    name: Publish @tenxyte/vue
+    if: startsWith(github.ref, 'refs/tags/v-tenxyte-vue-')
+    runs-on: ubuntu-latest
+    environment:
+      name: npm
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Build Core (local dependency)
+        run: npm ci && npm run build
+        working-directory: ./packages/core
+
+      - name: Install Dependencies
+        run: npm install
+        working-directory: ./packages/vue
+
+      - name: Build
+        run: npm run build
+        working-directory: ./packages/vue
+
+      - name: Publish
+        run: npm publish --access public --provenance
+        working-directory: ./packages/vue
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

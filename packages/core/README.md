@@ -1,11 +1,21 @@
 # @tenxyte/core
 
-The official core JavaScript/TypeScript SDK for the Tenxyte API.
-This SDK is the foundation for interacting securely with Tenxyte's robust authentication, multi-tenant organization management, and Advanced AI Security (AIRS) capabilities.
+The official core JavaScript/TypeScript SDK for the **Tenxyte** API — a unified platform for authentication, multi-tenant organizations, RBAC, GDPR compliance, and AI agent security.
+
+## Features
+
+- **Authentication** — Email/password, phone, magic link, social OAuth2, registration
+- **Security** — 2FA/TOTP, OTP verification, WebAuthn/Passkeys (FIDO2), password management
+- **RBAC** — Role & permission management, synchronous JWT checks, user role assignment
+- **User Management** — Profile CRUD, avatar upload, admin user operations
+- **B2B Multi-Tenancy** — Organization CRUD, member management, invitations, context switching
+- **AI Agent Security (AIRS)** — Agent tokens, circuit breakers, Human-in-the-Loop, usage reporting
+- **Applications** — API client management, credential regeneration
+- **Admin** — Audit logs, login attempts, blacklisted/refresh token management
+- **GDPR** — Account deletion flows, data export, admin deletion request processing
+- **Dashboard** — Global, auth, security, GDPR, and per-org statistics
 
 ## Installation
-
-You can install the package using `npm`, `yarn`, or `pnpm`:
 
 ```bash
 npm install @tenxyte/core
@@ -15,170 +25,420 @@ yarn add @tenxyte/core
 pnpm add @tenxyte/core
 ```
 
-## Initialization
-
-The single entry point for all operations is the `TenxyteClient`. You must initialize it with your API's base URL and (if you're using App-Centric auth) the `appKey` in headers. 
-
-> **Important**: Never expose an `appSecret` in frontend environments like React or Vue client bundles. Use it exclusively in server-side processes.
+## Quick Start
 
 ```typescript
 import { TenxyteClient } from '@tenxyte/core';
 
 const tx = new TenxyteClient({
-  baseUrl: 'https://api.my-backend.com',
-  headers: {
-    'X-Access-Key': 'your-public-app-key' // Optional, based on your backend configs.
-  }
+    baseUrl: 'https://api.my-backend.com',
+    headers: { 'X-Access-Key': 'your-public-app-key' },
 });
+
+// Login
+const tokens = await tx.auth.loginWithEmail({
+    email: 'user@example.com',
+    password: 'secure_password!',
+    device_info: '',
+});
+
+// Check authentication state
+const isLoggedIn = await tx.isAuthenticated();
+const user = await tx.getCurrentUser();
 ```
 
-The SDK is composed of separate functional modules: `auth`, `security`, `rbac`, `user`, `b2b`, and `ai`.
+> **Important**: Never expose `X-Access-Secret` in frontend bundles. Use it exclusively server-side.
 
 ---
 
-## Authentication Flows
+## Configuration
 
-### Standard Email / Password
-```typescript
-try {
-  const { user, tokens } = await tx.auth.loginWithEmail('user@example.com', 'secure_password!');
-  console.log(`Welcome back, ${user.first_name}!`);
-} catch (error) {
-  if (error.code === '2FA_REQUIRED') {
-    // Collect TOTP code from user...
-    await tx.auth.loginWithEmail('user@example.com', 'secure_password!', { totpCode: '123456' });
-  }
-}
-```
+The `TenxyteClient` accepts a single configuration object. Only `baseUrl` is required.
 
-### Social Login (OAuth2)
 ```typescript
-// Direct token exchange
-const response = await tx.auth.loginWithSocial('google', { 
-    id_token: 'google_id_token_jwt' 
+const tx = new TenxyteClient({
+    // Required
+    baseUrl: 'https://api.my-service.com',
+
+    // Optional — extra headers for every request
+    headers: { 'X-Access-Key': 'pkg_abc123' },
+
+    // Optional — token storage backend (default: MemoryStorage)
+    // Use LocalStorageAdapter for browser persistence
+    storage: new LocalStorageAdapter(),
+
+    // Optional — auto-refresh 401s silently (default: true)
+    autoRefresh: true,
+
+    // Optional — auto-inject device fingerprint into auth requests (default: true)
+    autoDeviceInfo: true,
+
+    // Optional — global request timeout in ms (default: undefined)
+    timeoutMs: 10_000,
+
+    // Optional — retry config for 429/5xx with exponential backoff
+    retryConfig: { maxRetries: 3, baseDelayMs: 500 },
+
+    // Optional — callback when session cannot be recovered
+    onSessionExpired: () => router.push('/login'),
+
+    // Optional — pluggable logger (default: silent no-op)
+    logger: console,
+    logLevel: 'debug', // 'silent' | 'error' | 'warn' | 'debug'
+
+    // Optional — override auto-detected device info
+    deviceInfoOverride: { app_name: 'MyApp', app_version: '2.0.0' },
 });
-
-// Or using OAuth code exchange
-const callback = await tx.auth.handleSocialCallback('github', 'auth_code', 'https://myapp.com/callback');
-```
-
-### Passwordless (Magic Link)
-```typescript
-// 1. Request the link
-await tx.auth.requestMagicLink('user@example.com', 'https://myapp.com/verify-magic');
-
-// 2. On the callback page, verify the token returned in the URL
-const { user, tokens } = await tx.auth.verifyMagicLink(urlParams.get('token'));
 ```
 
 ---
 
-## Authorization & RBAC
+## Modules
 
-The SDK automatically intercepts your requests to attach `Authorization: Bearer <token>` when available. 
-By utilizing the embedded `EventEmitter`, you can listen to rotation and expiration changes.
+### Authentication (`tx.auth`)
 
 ```typescript
-tx.http.addResponseInterceptor(async (response) => {
-    // You can intercept logic, or use tx.on(...) to be built later over the SDK Event layer.
-    return response;
+// Email/password login
+const tokens = await tx.auth.loginWithEmail({
+    email: 'user@example.com',
+    password: 'password123',
+    device_info: '',
+    totp_code: '123456', // optional, for 2FA
 });
+
+// Phone login
+const tokens = await tx.auth.loginWithPhone({
+    phone_country_code: '+1',
+    phone_number: '5551234567',
+    password: 'password123',
+    device_info: '',
+});
+
+// Registration
+const result = await tx.auth.register({
+    email: 'new@example.com',
+    password: 'StrongP@ss1',
+    first_name: 'Jane',
+    last_name: 'Doe',
+});
+
+// Magic Link (passwordless)
+await tx.auth.requestMagicLink({ email: 'user@example.com', validation_url: 'https://myapp.com/verify' });
+const tokens = await tx.auth.verifyMagicLink(urlToken);
+
+// Social OAuth2
+const tokens = await tx.auth.loginWithSocial('google', { id_token: 'jwt...' });
+const tokens = await tx.auth.handleSocialCallback('github', 'auth_code', 'https://myapp.com/cb');
+
+// Session management
+await tx.auth.logout('refresh_token_value');
+await tx.auth.logoutAll();
+await tx.auth.refreshToken('refresh_token_value');
 ```
 
-### Verifying Roles and Permissions
+### Security (`tx.security`)
+
 ```typescript
-// Fetch user roles & direct permissions across their active scope
+// 2FA (TOTP)
+const status = await tx.security.get2FAStatus();
+const { secret, qr_code_url, backup_codes } = await tx.security.setup2FA();
+await tx.security.confirm2FA('123456');
+await tx.security.disable2FA('123456');
+
+// OTP
+await tx.security.requestOtp({ delivery_method: 'email', purpose: 'login' });
+const result = await tx.security.verifyOtp({ otp: '123456', purpose: 'login' });
+
+// Password management
+await tx.security.resetPasswordRequest({ email: 'user@example.com' });
+await tx.security.resetPasswordConfirm({ token: '...', new_password: 'NewP@ss1' });
+await tx.security.changePassword({ old_password: 'old', new_password: 'new' });
+
+// WebAuthn / Passkeys
+await tx.security.registerWebAuthn('My Laptop');
+const session = await tx.security.authenticateWebAuthn('user@example.com');
+const creds = await tx.security.listWebAuthnCredentials();
+await tx.security.deleteWebAuthnCredential(credentialId);
+```
+
+### RBAC (`tx.rbac`)
+
+```typescript
+// Synchronous JWT checks (no network call)
+tx.rbac.setToken(accessToken);
+const isAdmin = tx.rbac.hasRole('admin');
+const canEdit = tx.rbac.hasPermission('users.edit');
+const hasAny = tx.rbac.hasAnyRole(['admin', 'manager']);
+const hasAll = tx.rbac.hasAllRoles(['admin', 'superadmin']);
+
+// CRUD operations (network calls)
+const roles = await tx.rbac.listRoles();
+await tx.rbac.createRole({ code: 'editor', name: 'Editor' });
+await tx.rbac.assignRoleToUser('user-id', 'editor');
+await tx.rbac.removeRoleFromUser('user-id', 'editor');
+
+const permissions = await tx.rbac.listPermissions();
+await tx.rbac.assignPermissionsToUser('user-id', ['posts.create', 'posts.edit']);
+await tx.rbac.removePermissionsFromUser('user-id', ['posts.create']);
+
+// Fetch user's roles/permissions from backend
+const userRoles = await tx.rbac.getUserRoles('user-id');
+const userPerms = await tx.rbac.getUserPermissions('user-id');
+```
+
+### User Management (`tx.user`)
+
+```typescript
+const profile = await tx.user.getProfile();
+await tx.user.updateProfile({ first_name: 'Updated' });
+await tx.user.uploadAvatar(fileFormData);
+await tx.user.deleteAccount('my-password');
 const myRoles = await tx.user.getMyRoles();
 
-// List backend global roles
-const roles = await tx.rbac.listRoles();
+// Admin operations
+const users = await tx.user.listUsers({ page: 1, page_size: 20 });
+const user = await tx.user.getUser('user-id');
+await tx.user.adminUpdateUser('user-id', { is_active: false });
+await tx.user.adminDeleteUser('user-id');
+await tx.user.banUser('user-id', 'spam');
 ```
 
----
-
-## Advanced Security
-
-### WebAuthn / Passkeys
-The `security` module natively wraps browser credentials APIs to seamlessly interact with Tenxyte's FIDO2 bindings.
+### B2B Organizations (`tx.b2b`)
 
 ```typescript
-// Register a new device/Passkey for the authenticated user
-await tx.security.registerWebAuthn('My MacBook Chrome');
-
-// Authenticate securely (Without needing a password)
-const session = await tx.security.authenticateWebAuthn('user@example.com');
-```
-
-### 2FA (TOTP) Enrollment
-```typescript
-const { secret, qr_code_url, backup_codes } = await tx.security.setup2FA();
-// Show the QR code to the user, then confirm their first valid code
-await tx.security.confirm2FA(userProvidedCode);
-```
-
----
-
-## B2B Organizations (Multi-Tenancy)
-
-Tenxyte natively supports complex multi-tenant B2B topologies. Using `switchOrganization` instructs the SDK to pass the context `X-Org-Slug` downstream transparently.
-
-```typescript
-// Activate context
+// Context switching — auto-injects X-Org-Slug header
 tx.b2b.switchOrganization('acme-corp');
-
-// All subsequent calls inject `X-Org-Slug: acme-corp`.
-const members = await tx.b2b.listMembers('acme-corp');
-
-// Invite a collaborator into this organization
-await tx.b2b.inviteMember('acme-corp', { email: 'dev@example.com', role_code: 'admin' });
-
-// Clear context
+const slug = tx.b2b.getCurrentOrganizationSlug(); // 'acme-corp'
 tx.b2b.clearOrganization();
+
+// Organization CRUD
+const orgs = await tx.b2b.listOrganizations();
+const org = await tx.b2b.createOrganization({ name: 'Acme Corp', slug: 'acme-corp' });
+await tx.b2b.updateOrganization('acme-corp', { name: 'Acme Corp Inc.' });
+await tx.b2b.deleteOrganization('acme-corp');
+
+// Members
+const members = await tx.b2b.listMembers('acme-corp');
+await tx.b2b.addMember('acme-corp', { user_id: 'uid', role_code: 'member' });
+await tx.b2b.updateMember('acme-corp', 'uid', { role_code: 'admin' });
+await tx.b2b.removeMember('acme-corp', 'uid');
+
+// Invitations
+await tx.b2b.inviteMember('acme-corp', { email: 'dev@example.com', role_code: 'admin' });
+const roles = await tx.b2b.listOrgRoles('acme-corp');
 ```
 
----
-
-## AIRS (AI Responsibility & Security)
-
-If your architecture includes orchestrating authenticated LLM agents that take action via Tenxyte endpoints, you must use **AgentTokens**.
+### AI Agent Security (`tx.ai`)
 
 ```typescript
-// 1. Authenticated User delegates secure permissions to an Agent
-const agentTokenData = await tx.ai.createAgentToken({
+// Agent token lifecycle
+const agentData = await tx.ai.createAgentToken({
     agent_id: 'Invoice-Parser-Bot',
     permissions: ['invoices.read', 'invoices.create'],
-    budget_limit_usd: 5.00, // strict budget enforcing
-    circuit_breaker: { max_requests: 100, window_seconds: 60 }
+    budget_limit_usd: 5.00,
+    circuit_breaker: { max_requests: 100, window_seconds: 60 },
 });
 
-// 2. Instruct the SDK to flip into Agent Mode
-tx.ai.setAgentToken(agentTokenData.token);
+tx.ai.setAgentToken(agentData.token); // SDK switches to AgentBearer auth
+tx.ai.isAgentMode(); // true
+tx.ai.clearAgentToken(); // back to standard Bearer
 
-// The SDK will now authorize using `AgentBearer <token>`.
-// 3. Keep the agent alive
-await tx.ai.sendHeartbeat(agentTokenData.id);
+// Token management
+const tokens = await tx.ai.listAgentTokens();
+const token = await tx.ai.getAgentToken('token-id');
+await tx.ai.revokeAgentToken('token-id');
+await tx.ai.suspendAgentToken('token-id');
+await tx.ai.revokeAllAgentTokens();
 
-// 4. Report LLM consumption cost transparently back to backend
-await tx.ai.reportUsage(agentTokenData.id, {
+// Human-in-the-Loop
+const pending = await tx.ai.listPendingActions();
+await tx.ai.confirmPendingAction('confirmation-token');
+await tx.ai.denyPendingAction('confirmation-token');
+
+// Monitoring
+await tx.ai.sendHeartbeat('token-id');
+await tx.ai.reportUsage('token-id', {
     cost_usd: 0.015,
     prompt_tokens: 1540,
-    completion_tokens: 420
+    completion_tokens: 420,
 });
 
-// Disable agent mode and return to standard User flow
-tx.ai.clearAgentToken();
+// Traceability
+tx.ai.setTraceId('trace-1234'); // adds X-Prompt-Trace-ID header
+tx.ai.clearTraceId();
 ```
 
-### Human In The Loop (HITL) & Auditing
+### Applications (`tx.applications`)
+
 ```typescript
-// Linking operations to prompt identifiers for debugging
-tx.ai.setTraceId('trace-1234abcd-prompt');
-// Request will now include X-Prompt-Trace-ID
-
-// Any requests generating a `HTTP 202 Accepted` indicate HITL.
-const pendingActions = await tx.ai.listPendingActions();
-await tx.ai.confirmPendingAction(pendingActions[0].confirmation_token);
+const apps = await tx.applications.listApplications();
+const app = await tx.applications.createApplication({
+    name: 'My API Client',
+    description: 'Backend service',
+});
+const detail = await tx.applications.getApplication('app-id');
+await tx.applications.updateApplication('app-id', { name: 'Renamed' });
+await tx.applications.patchApplication('app-id', { description: 'Updated desc' });
+await tx.applications.deleteApplication('app-id');
+const newCreds = await tx.applications.regenerateCredentials('app-id');
 ```
+
+### Admin (`tx.admin`)
+
+```typescript
+// Audit logs
+const logs = await tx.admin.listAuditLogs({ page: 1 });
+const log = await tx.admin.getAuditLog('log-id');
+
+// Login attempts
+const attempts = await tx.admin.listLoginAttempts({ user_id: 'uid' });
+
+// Blacklisted tokens
+const blacklisted = await tx.admin.listBlacklistedTokens();
+await tx.admin.cleanupBlacklistedTokens();
+
+// Refresh tokens
+const refreshTokens = await tx.admin.listRefreshTokens({ user_id: 'uid' });
+await tx.admin.revokeRefreshToken('token-id');
+```
+
+### GDPR (`tx.gdpr`)
+
+```typescript
+// User-facing
+await tx.gdpr.requestAccountDeletion({ reason: 'No longer needed' });
+await tx.gdpr.confirmAccountDeletion('confirmation-code');
+await tx.gdpr.cancelAccountDeletion();
+const status = await tx.gdpr.getDeletionStatus();
+const data = await tx.gdpr.exportUserData();
+
+// Admin-facing
+const requests = await tx.gdpr.listDeletionRequests({ status: 'pending' });
+const request = await tx.gdpr.getDeletionRequest('request-id');
+await tx.gdpr.processDeletionRequest('request-id', { action: 'approve' });
+await tx.gdpr.processExpiredDeletions();
+```
+
+### Dashboard (`tx.dashboard`)
+
+```typescript
+const global = await tx.dashboard.getStats({ period: 'last_30_days' });
+const auth = await tx.dashboard.getAuthStats();
+const security = await tx.dashboard.getSecurityStats();
+const gdpr = await tx.dashboard.getGdprStats();
+const orgStats = await tx.dashboard.getOrganizationStats('acme-corp');
+```
+
+---
+
+## SDK Events
+
+The SDK emits events via a built-in `EventEmitter`. Use `tx.on()`, `tx.once()`, and `tx.off()` to subscribe.
+
+| Event | Payload | When |
+|---|---|---|
+| `session:expired` | `void` | Refresh token expired/revoked, session unrecoverable |
+| `token:refreshed` | `{ accessToken: string }` | Access token silently rotated via auto-refresh |
+| `token:stored` | `{ accessToken: string; refreshToken?: string }` | Tokens persisted after login, register, or refresh |
+| `agent:awaiting_approval` | `{ action: unknown }` | AI agent action requires human confirmation (HTTP 202) |
+| `error` | `{ error: unknown }` | Unrecoverable SDK error not tied to a specific call |
+
+```typescript
+// React to session expiry
+tx.on('session:expired', () => {
+    router.push('/login');
+});
+
+// Track token refreshes
+tx.on('token:refreshed', ({ accessToken }) => {
+    console.log('Token refreshed silently');
+});
+
+// HITL notification
+tx.on('agent:awaiting_approval', ({ action }) => {
+    showApprovalDialog(action);
+});
+```
+
+---
+
+## High-Level Helpers
+
+```typescript
+// Check if user is authenticated (synchronous JWT expiry check)
+const isLoggedIn = await tx.isAuthenticated();
+
+// Get the raw access token
+const token = await tx.getAccessToken();
+
+// Get decoded JWT payload (no network call)
+const user = await tx.getCurrentUser();
+
+// Check token expiry
+const expired = await tx.isTokenExpired();
+
+// Get full SDK state snapshot (for framework wrappers)
+const state = await tx.getState();
+// { isAuthenticated, user, accessToken, activeOrg, isAgentMode }
+```
+
+---
+
+## Migration Guide: v0.9 → v1.0
+
+### Breaking Changes
+
+1. **Constructor signature changed** — The client now accepts a `TenxyteClientConfig` object:
+   ```typescript
+   // Before (v0.9)
+   const tx = new TenxyteClient({ baseUrl: '...', headers: { ... } });
+
+   // After (v1.0) — same, but new options available
+   const tx = new TenxyteClient({
+       baseUrl: '...',
+       headers: { ... },
+       autoRefresh: true,    // NEW
+       autoDeviceInfo: true, // NEW
+       retryConfig: { ... }, // NEW
+   });
+   ```
+
+2. **`loginWithEmail` now requires `device_info`**:
+   ```typescript
+   // Before (v0.9)
+   await tx.auth.loginWithEmail({ email, password });
+
+   // After (v1.0)
+   await tx.auth.loginWithEmail({ email, password, device_info: '' });
+   ```
+
+3. **`requestMagicLink` now requires `validation_url`**:
+   ```typescript
+   // Before
+   await tx.auth.requestMagicLink({ email });
+
+   // After
+   await tx.auth.requestMagicLink({ email, validation_url: 'https://...' });
+   ```
+
+4. **Auto-session management** — Tokens are now automatically stored and the `Authorization` header is automatically injected. You no longer need to manage this manually.
+
+5. **New modules added** — `tx.applications`, `tx.admin`, `tx.gdpr`, `tx.dashboard` are now available.
+
+6. **`register()` return type changed** — Now returns `RegisterResponse` (may include tokens if auto-login is enabled).
+
+### New Features in v1.0
+
+- Auto-refresh interceptor (silent 401 → refresh → retry)
+- Configurable retry with exponential backoff (429/5xx)
+- Device info auto-injection
+- Pluggable logger with log levels
+- High-level helpers (`isAuthenticated`, `getCurrentUser`, `isTokenExpired`)
+- `getState()` for framework wrapper integration
+- EventEmitter for reactive state (`session:expired`, `token:refreshed`, etc.)
+
+---
 
 ## License
+
 MIT

@@ -1,3 +1,89 @@
+/**
+ * MemoryStorage implementation primarily used in Node.js (SSR)
+ * environments or as a fallback when browser storage is unavailable.
+ */
+declare class MemoryStorage implements TenxyteStorage {
+    private store;
+    constructor();
+    getItem(key: string): string | null;
+    setItem(key: string, value: string): void;
+    removeItem(key: string): void;
+    clear(): void;
+}
+
+/**
+ * LocalStorage wrapper for the browser.
+ * Degrades gracefully to MemoryStorage if localStorage is unavailable
+ * (e.g., SSR, Private Browsing mode strictness).
+ */
+declare class LocalStorage implements TenxyteStorage {
+    private fallbackMemoryStore;
+    private isAvailable;
+    constructor();
+    private checkAvailability;
+    getItem(key: string): string | null;
+    setItem(key: string, value: string): void;
+    removeItem(key: string): void;
+    clear(): void;
+}
+
+/**
+ * CookieStorage implementation
+ * Note: To be secure, tokens should be HttpOnly where possible.
+ * This class handles client-side cookies if necessary.
+ */
+declare class CookieStorage implements TenxyteStorage {
+    private defaultOptions;
+    constructor(options?: {
+        secure?: boolean;
+        sameSite?: 'Strict' | 'Lax' | 'None';
+    });
+    getItem(key: string): string | null;
+    setItem(key: string, value: string): void;
+    removeItem(key: string): void;
+    clear(): void;
+}
+
+interface TenxyteStorage {
+    /**
+     * Retrieves a value from storage.
+     * @param key The key to retrieve
+     */
+    getItem(key: string): string | null | Promise<string | null>;
+    /**
+     * Saves a value to storage.
+     * @param key The key to store
+     * @param value The string value
+     */
+    setItem(key: string, value: string): void | Promise<void>;
+    /**
+     * Removes a specific key from storage.
+     * @param key The key to remove
+     */
+    removeItem(key: string): void | Promise<void>;
+    /**
+     * Clears all storage keys managed by the SDK.
+     */
+    clear(): void | Promise<void>;
+}
+
+/**
+ * Helper utility to build the device fingerprint required by Tenxyte security features.
+ * Format: `v=1|os=windows;osv=11|device=desktop|arch=x64|app=tenxyte;appv=1.0.0|runtime=chrome;rtv=122|tz=Europe/Paris`
+ */
+interface CustomDeviceInfo {
+    os?: string;
+    osVersion?: string;
+    device?: string;
+    arch?: string;
+    app?: string;
+    appVersion?: string;
+    runtime?: string;
+    runtimeVersion?: string;
+    timezone?: string;
+}
+declare function buildDeviceInfo(customInfo?: CustomDeviceInfo): string;
+
 interface HttpClientOptions {
     baseUrl: string;
     timeoutMs?: number;
@@ -16,6 +102,7 @@ type RequestConfig = Omit<RequestInit, 'body' | 'headers'> & {
 declare class TenxyteHttpClient {
     private baseUrl;
     private defaultHeaders;
+    private timeoutMs;
     private requestInterceptors;
     private responseInterceptors;
     constructor(options: HttpClientOptions);
@@ -30,8 +117,211 @@ declare class TenxyteHttpClient {
     post<T>(endpoint: string, data?: unknown, config?: Omit<RequestConfig, 'method' | 'body'>): Promise<T>;
     put<T>(endpoint: string, data?: unknown, config?: Omit<RequestConfig, 'method' | 'body'>): Promise<T>;
     patch<T>(endpoint: string, data?: unknown, config?: Omit<RequestConfig, 'method' | 'body'>): Promise<T>;
-    delete<T>(endpoint: string, config?: Omit<RequestConfig, 'method' | 'body'>): Promise<T>;
+    delete<T>(endpoint: string, data?: unknown, config?: Omit<RequestConfig, 'method' | 'body'>): Promise<T>;
 }
+
+interface TenxyteContext {
+    activeOrgSlug: string | null;
+    agentTraceId: string | null;
+}
+declare function createAuthInterceptor(storage: TenxyteStorage, context: TenxyteContext): (request: RequestConfig & {
+    url: string;
+}) => Promise<{
+    headers: {
+        [x: string]: string;
+    };
+    cache?: RequestCache | undefined;
+    credentials?: RequestCredentials | undefined;
+    integrity?: string | undefined;
+    keepalive?: boolean | undefined;
+    method?: string | undefined;
+    mode?: RequestMode | undefined;
+    priority?: RequestPriority | undefined;
+    redirect?: RequestRedirect | undefined;
+    referrer?: string | undefined;
+    referrerPolicy?: ReferrerPolicy | undefined;
+    signal?: (AbortSignal | null) | undefined;
+    window?: null | undefined;
+    body?: unknown;
+    params?: Record<string, string | number | boolean>;
+    url: string;
+}>;
+declare function createRefreshInterceptor(client: TenxyteHttpClient, storage: TenxyteStorage, onSessionExpired: () => void, onTokenRefreshed?: (accessToken: string, refreshToken?: string) => void): (response: Response, request: {
+    url: string;
+    config: RequestConfig;
+}) => Promise<Response>;
+/** Configuration for the automatic retry middleware. */
+interface RetryConfig {
+    /** Maximum number of retries per request. Defaults to 3. */
+    maxRetries?: number;
+    /** Retry on HTTP 429 (Too Many Requests). Defaults to true. */
+    retryOn429?: boolean;
+    /** Retry on network errors (fetch failures, timeouts). Defaults to true. */
+    retryOnNetworkError?: boolean;
+    /** Base delay in ms for exponential backoff. Defaults to 1000. */
+    baseDelayMs?: number;
+}
+/**
+ * Creates a response interceptor that retries failed requests with exponential backoff.
+ * Respects the `Retry-After` header when present on 429 responses.
+ */
+declare function createRetryInterceptor(config?: RetryConfig, logger?: TenxyteLogger): (response: Response, request: {
+    url: string;
+    config: RequestConfig;
+}) => Promise<Response>;
+declare function createDeviceInfoInterceptor(override?: CustomDeviceInfo): (request: RequestConfig & {
+    url: string;
+}) => Omit<RequestInit, "body" | "headers"> & {
+    body?: unknown;
+    headers?: Record<string, string>;
+    params?: Record<string, string | number | boolean>;
+} & {
+    url: string;
+};
+
+/**
+ * Semantic version of the SDK, kept in sync with package.json.
+ * Sent as X-SDK-Version header when diagnostics are enabled.
+ */
+declare const SDK_VERSION = "0.9.0";
+/**
+ * Log level controlling the verbosity of the SDK internal logger.
+ *
+ * - `'silent'` — No output (default).
+ * - `'error'`  — Errors only.
+ * - `'warn'`   — Errors and warnings.
+ * - `'debug'`  — Verbose output including debug traces.
+ */
+type LogLevel = 'silent' | 'error' | 'warn' | 'debug';
+/**
+ * Pluggable logger interface accepted by the SDK.
+ * Any object satisfying this contract (e.g. `console`) can be passed as `logger`.
+ */
+interface TenxyteLogger {
+    /** Verbose diagnostic messages (interceptors, token lifecycle, etc.) */
+    debug(message: string, ...args: unknown[]): void;
+    /** Non-critical issues that deserve attention (deprecated usage, retry fallback, etc.) */
+    warn(message: string, ...args: unknown[]): void;
+    /** Unrecoverable errors (network failures, malformed responses, etc.) */
+    error(message: string, ...args: unknown[]): void;
+}
+/**
+ * Configuration object accepted by {@link TenxyteClient}.
+ *
+ * Only `baseUrl` is required — every other option has a sensible default.
+ *
+ * @example
+ * ```typescript
+ * import { TenxyteClient } from '@tenxyte/core';
+ *
+ * const tx = new TenxyteClient({
+ *     baseUrl: 'https://api.my-service.com',
+ *     headers: { 'X-Access-Key': 'pkg_abc123' },
+ *     autoRefresh: true,
+ *     autoDeviceInfo: true,
+ *     timeoutMs: 10_000,
+ *     onSessionExpired: () => router.push('/login'),
+ * });
+ * ```
+ */
+interface TenxyteClientConfig {
+    /** Base URL of the Tenxyte-powered API, without a trailing slash. */
+    baseUrl: string;
+    /** Extra HTTP headers merged into every outgoing request (e.g. X-Access-Key, X-Access-Secret). */
+    headers?: Record<string, string>;
+    /**
+     * Persistent token storage back-end.
+     * The SDK ships with MemoryStorage, LocalStorageAdapter, and CookieStorage.
+     * Defaults to MemoryStorage (in-memory, lost on page reload / process exit).
+     */
+    storage?: TenxyteStorage;
+    /**
+     * When true, the SDK automatically attaches a response interceptor that
+     * intercepts 401 responses, attempts a silent token refresh via
+     * POST /refresh/, and replays the original request on success.
+     * Defaults to true.
+     */
+    autoRefresh?: boolean;
+    /**
+     * When true, the SDK injects a device_info payload (built by
+     * buildDeviceInfo()) into every authentication request body
+     * (/login/email/, /login/phone/, /register/, /social/*).
+     * Set to false if you supply your own fingerprint or run in an
+     * environment where the auto-detected info is irrelevant (e.g. CI).
+     * Defaults to true.
+     */
+    autoDeviceInfo?: boolean;
+    /**
+     * Global request timeout in milliseconds.
+     * When set, every fetch call is wrapped with an AbortController.
+     * If the timer fires before the response arrives, the SDK throws a
+     * TenxyteError with code TIMEOUT.
+     * Defaults to undefined (no timeout).
+     */
+    timeoutMs?: number;
+    /**
+     * Callback invoked whenever the active session can no longer be recovered
+     * (e.g. refresh token is expired or revoked).
+     * This is a convenience shortcut equivalent to tx.on('session:expired', callback).
+     */
+    onSessionExpired?: () => void;
+    /**
+     * Custom logger implementation.
+     * Defaults to a silent no-op logger. Pass console for quick debugging
+     * or supply any object that satisfies the TenxyteLogger interface.
+     */
+    logger?: TenxyteLogger;
+    /**
+     * Controls the verbosity of the built-in logger when no custom logger
+     * is provided. Defaults to 'silent'.
+     */
+    logLevel?: LogLevel;
+    /**
+     * Override or supplement the auto-detected device information.
+     * When provided, these values are merged on top of the auto-detected
+     * fingerprint built by `buildDeviceInfo()`. Only relevant when
+     * `autoDeviceInfo` is `true`.
+     */
+    deviceInfoOverride?: CustomDeviceInfo;
+    /**
+     * When provided, the SDK attaches a response interceptor that
+     * automatically retries failed requests (429 / 5xx / network errors)
+     * with exponential backoff. Pass `{}` for sensible defaults.
+     */
+    retryConfig?: RetryConfig;
+}
+/**
+ * Fully resolved configuration where every optional field has been
+ * filled with its default value. This is the shape used internally
+ * by TenxyteClient after calling {@link resolveConfig}.
+ */
+interface ResolvedTenxyteConfig {
+    baseUrl: string;
+    headers: Record<string, string>;
+    storage: TenxyteStorage;
+    autoRefresh: boolean;
+    autoDeviceInfo: boolean;
+    timeoutMs: number | undefined;
+    onSessionExpired: (() => void) | undefined;
+    logger: TenxyteLogger;
+    logLevel: LogLevel;
+    deviceInfoOverride: CustomDeviceInfo | undefined;
+    retryConfig: RetryConfig | undefined;
+}
+/** Silent no-op logger used when the consumer does not provide one. */
+declare const NOOP_LOGGER: TenxyteLogger;
+/**
+ * Merges user-provided configuration with sensible defaults.
+ *
+ * Default values:
+ * - storage: new MemoryStorage()
+ * - autoRefresh: true
+ * - autoDeviceInfo: true
+ * - headers: {}
+ * - logLevel: 'silent'
+ * - logger: NOOP_LOGGER
+ */
+declare function resolveConfig(config: TenxyteClientConfig): ResolvedTenxyteConfig;
 
 interface components {
     schemas: {
@@ -957,7 +1247,7 @@ interface TenxyteError {
     details?: Record<string, string[]> | string;
     retry_after?: number;
 }
-type TenxyteErrorCode = 'LOGIN_FAILED' | 'INVALID_CREDENTIALS' | 'ACCOUNT_LOCKED' | 'ACCOUNT_BANNED' | '2FA_REQUIRED' | 'ADMIN_2FA_SETUP_REQUIRED' | 'TOKEN_EXPIRED' | 'TOKEN_BLACKLISTED' | 'REFRESH_FAILED' | 'PERMISSION_DENIED' | 'SESSION_LIMIT_EXCEEDED' | 'DEVICE_LIMIT_EXCEEDED' | 'RATE_LIMITED' | 'INVALID_OTP' | 'OTP_EXPIRED' | 'INVALID_PROVIDER' | 'SOCIAL_AUTH_FAILED' | 'VALIDATION_URL_REQUIRED' | 'INVALID_TOKEN' | 'CONFIRMATION_REQUIRED' | 'PASSWORD_REQUIRED' | 'INVALID_PASSWORD' | 'INVALID_DEVICE_INFO' | 'ORG_NOT_FOUND' | 'NOT_ORG_MEMBER' | 'NOT_OWNER' | 'ALREADY_MEMBER' | 'MEMBER_LIMIT_EXCEEDED' | 'HAS_CHILDREN' | 'CIRCULAR_HIERARCHY' | 'LAST_OWNER_REQUIRED' | 'INVITATION_EXISTS' | 'INVALID_ROLE' | 'AGENT_NOT_FOUND' | 'AGENT_SUSPENDED' | 'AGENT_REVOKED' | 'AGENT_EXPIRED' | 'BUDGET_EXCEEDED' | 'RATE_LIMIT_EXCEEDED' | 'HEARTBEAT_MISSING' | 'AIRS_DISABLED';
+type TenxyteErrorCode = 'LOGIN_FAILED' | 'INVALID_CREDENTIALS' | 'ACCOUNT_LOCKED' | 'ACCOUNT_BANNED' | '2FA_REQUIRED' | 'ADMIN_2FA_SETUP_REQUIRED' | 'TOKEN_EXPIRED' | 'TOKEN_BLACKLISTED' | 'REFRESH_FAILED' | 'PERMISSION_DENIED' | 'SESSION_LIMIT_EXCEEDED' | 'DEVICE_LIMIT_EXCEEDED' | 'RATE_LIMITED' | 'INVALID_OTP' | 'OTP_EXPIRED' | 'INVALID_PROVIDER' | 'SOCIAL_AUTH_FAILED' | 'VALIDATION_URL_REQUIRED' | 'INVALID_TOKEN' | 'CONFIRMATION_REQUIRED' | 'PASSWORD_REQUIRED' | 'INVALID_PASSWORD' | 'INVALID_DEVICE_INFO' | 'ORG_NOT_FOUND' | 'NOT_ORG_MEMBER' | 'NOT_OWNER' | 'ALREADY_MEMBER' | 'MEMBER_LIMIT_EXCEEDED' | 'HAS_CHILDREN' | 'CIRCULAR_HIERARCHY' | 'LAST_OWNER_REQUIRED' | 'INVITATION_EXISTS' | 'INVALID_ROLE' | 'AGENT_NOT_FOUND' | 'AGENT_SUSPENDED' | 'AGENT_REVOKED' | 'AGENT_EXPIRED' | 'BUDGET_EXCEEDED' | 'RATE_LIMIT_EXCEEDED' | 'HEARTBEAT_MISSING' | 'AIRS_DISABLED' | 'TIMEOUT' | 'NETWORK_ERROR';
 /**
  * Organization Structure defining a B2B tenant or hierarchical unit.
  */
@@ -1029,18 +1319,58 @@ interface LoginEmailOptions {
 interface LoginPhoneOptions {
     totp_code?: string;
 }
-type RegisterRequest = any;
+interface RegisterRequest {
+    /** Email address (required unless phone-based registration). */
+    email?: string | null;
+    /** International phone country code (e.g. "+33"). */
+    phone_country_code?: string | null;
+    /** Phone number without country code. */
+    phone_number?: string | null;
+    /** Account password. */
+    password: string;
+    /** User's first name. */
+    first_name?: string;
+    /** User's last name. */
+    last_name?: string;
+    /** Username (if enabled by the backend). */
+    username?: string;
+    /** If true, the user is logged in immediately after registration (JWT tokens returned). */
+    login?: boolean;
+}
 interface MagicLinkRequest {
     email: string;
+    /** URL used to build the verification link (required). */
+    validation_url: string;
 }
 interface SocialLoginRequest {
     access_token?: string;
     authorization_code?: string;
     id_token?: string;
 }
+/** Response from the registration endpoint (may include tokens if `login: true`). */
+interface RegisterResponse {
+    message?: string;
+    user_id?: string;
+    access_token?: string;
+    refresh_token?: string;
+    token_type?: string;
+    expires_in?: number;
+}
+/** Response from the magic link request endpoint. */
+interface MagicLinkResponse {
+    message?: string;
+    expires_in_minutes?: number;
+    /** Masked email for security. */
+    sent_to?: string;
+}
 declare class AuthModule {
     private client;
-    constructor(client: TenxyteHttpClient);
+    private storage?;
+    private onTokens?;
+    private onLogout?;
+    constructor(client: TenxyteHttpClient, storage?: TenxyteStorage | undefined, onTokens?: ((accessToken: string, refreshToken?: string) => void) | undefined, onLogout?: (() => void) | undefined);
+    private clearTokens;
+    private persistTokens;
     /**
      * Authenticate a user with their email and password.
      * @param data - The login credentials and optional TOTP code if 2FA is required.
@@ -1059,7 +1389,7 @@ declare class AuthModule {
      * @param data - The registration details (email, password, etc.).
      * @returns The registered user data or a confirmation message.
      */
-    register(data: RegisterRequest): Promise<any>;
+    register(data: RegisterRequest): Promise<RegisterResponse>;
     /**
      * Logout from the current session.
      * Informs the backend to immediately revoke the specified refresh token.
@@ -1072,10 +1402,17 @@ declare class AuthModule {
      */
     logoutAll(): Promise<void>;
     /**
+     * Manually refresh the access token using a valid refresh token.
+     * The refresh token is automatically rotated for improved security.
+     * @param refreshToken - The current refresh token.
+     * @returns A new token pair (access + rotated refresh).
+     */
+    refreshToken(refreshToken: string): Promise<TokenPair>;
+    /**
      * Request a Magic Link for passwordless sign-in.
      * @param data - The email to send the logic link to.
      */
-    requestMagicLink(data: MagicLinkRequest): Promise<void>;
+    requestMagicLink(data: MagicLinkRequest): Promise<MagicLinkResponse>;
     /**
      * Verifies a magic link token extracted from the URL.
      * @param token - The cryptographic token received via email.
@@ -1388,6 +1725,16 @@ declare class RbacModule {
     /** Destroys an atomic Permission permanently. Any Roles referencing it will be stripped of this grant automatically. */
     deletePermission(permissionId: string): Promise<void>;
     /**
+     * Retrieve all roles assigned to a specific user.
+     * @param userId - The target user ID.
+     */
+    getUserRoles(userId: string): Promise<Record<string, unknown>>;
+    /**
+     * Retrieve all permissions directly assigned to a specific user (excluding role-based permissions).
+     * @param userId - The target user ID.
+     */
+    getUserPermissions(userId: string): Promise<Record<string, unknown>>;
+    /**
      * Attach a given Role globally to a user entity.
      * Use sparingly if B2B multi-tenancy contexts are preferred.
      */
@@ -1423,27 +1770,37 @@ declare class UserModule {
     private client;
     constructor(client: TenxyteHttpClient);
     /** Retrieve your current comprehensive Profile metadata matching the active network bearer token. */
-    getProfile(): Promise<any>;
+    getProfile(): Promise<TenxyteUser>;
     /** Modify your active profile core details or injected application metadata. */
-    updateProfile(data: UpdateProfileParams): Promise<any>;
+    updateProfile(data: UpdateProfileParams): Promise<TenxyteUser>;
     /**
      * Upload an avatar using FormData.
      * Ensure the environment supports FormData (browser or Node.js v18+).
      * @param formData The FormData object containing the 'avatar' field.
      */
-    uploadAvatar(formData: FormData): Promise<any>;
+    uploadAvatar(formData: FormData): Promise<TenxyteUser>;
     /**
+     * @deprecated Use `gdpr.requestAccountDeletion()` instead. This proxy will be removed in a future release.
      * Trigger self-deletion of an entire account data boundary.
      * @param password - Requires the active system password as destructive proof of intent.
      * @param otpCode - (Optional) If an OTP was queried prior to attempting account deletion.
      */
     deleteAccount(password: string, otpCode?: string): Promise<void>;
+    /**
+     * Retrieve the roles and permissions of the currently authenticated user.
+     * @returns An object containing `roles[]` and `permissions[]`.
+     */
+    getMyRoles(): Promise<{
+        roles: any[];
+        permissions: any[];
+        [key: string]: unknown;
+    }>;
     /** (Admin only) Lists users paginated matching criteria. */
-    listUsers(params?: Record<string, any>): Promise<any[]>;
+    listUsers(params?: Record<string, any>): Promise<PaginatedResponse<TenxyteUser>>;
     /** (Admin only) Gets deterministic data related to a remote unassociated user. */
-    getUser(userId: string): Promise<any>;
+    getUser(userId: string): Promise<TenxyteUser>;
     /** (Admin only) Modifies configuration/details or capacity bounds related to a remote unassociated user. */
-    adminUpdateUser(userId: string, data: AdminUpdateUserParams): Promise<any>;
+    adminUpdateUser(userId: string, data: AdminUpdateUserParams): Promise<TenxyteUser>;
     /** (Admin only) Force obliterate a User boundary. Can affect relational database stability if not bound carefully. */
     adminDeleteUser(userId: string): Promise<void>;
     /** (Admin only) Apply a permanent suspension / ban state globally on a user token footprint. */
@@ -1587,7 +1944,8 @@ declare class AiModule {
     private client;
     private agentToken;
     private traceId;
-    constructor(client: TenxyteHttpClient);
+    private logger?;
+    constructor(client: TenxyteHttpClient, logger?: TenxyteLogger);
     /**
      * Create an AgentToken granting specific deterministic limits to an AI Agent.
      */
@@ -1673,10 +2031,607 @@ declare class AiModule {
 }
 
 /**
+ * Represents an application (API client) registered in the Tenxyte platform.
+ * The `access_secret` is never returned after creation — only `access_key` is visible.
+ */
+interface Application {
+    id: string;
+    name: string;
+    description?: string;
+    access_key: string;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+}
+/**
+ * Parameters accepted by `listApplications()`.
+ */
+interface ApplicationListParams {
+    /** Search within name and description. */
+    search?: string;
+    /** Filter by active status. */
+    is_active?: boolean;
+    /** Sort field: `name`, `is_active`, `created_at`, `updated_at`. */
+    ordering?: string;
+    /** Page number (1-indexed). */
+    page?: number;
+    /** Items per page (max 100). */
+    page_size?: number;
+}
+/**
+ * Body accepted by `createApplication()`.
+ */
+interface ApplicationCreateData {
+    name: string;
+    description?: string;
+}
+/**
+ * Response returned by `createApplication()`.
+ * **`client_secret` is only shown once at creation time.**
+ */
+interface ApplicationCreateResponse {
+    id: number;
+    name: string;
+    description?: string;
+    client_id: string;
+    client_secret: string;
+    is_active: boolean;
+    created_at: string;
+    secret_rotation_warning?: string;
+}
+/**
+ * Body accepted by `updateApplication()` (PUT — full replace).
+ */
+interface ApplicationUpdateData {
+    name?: string;
+    description?: string;
+    is_active?: boolean;
+}
+/**
+ * Response returned by `regenerateCredentials()`.
+ * **`credentials.access_secret` is only shown once.**
+ */
+interface ApplicationRegenerateResponse {
+    message?: string;
+    application?: Record<string, unknown>;
+    credentials?: {
+        access_key?: string;
+        access_secret?: string;
+    };
+    warning?: string;
+    old_credentials_invalidated?: boolean;
+}
+declare class ApplicationsModule {
+    private client;
+    constructor(client: TenxyteHttpClient);
+    /**
+     * List all registered applications (paginated).
+     * @param params - Optional filters: `search`, `is_active`, `ordering`, `page`, `page_size`.
+     * @returns A paginated list of applications.
+     */
+    listApplications(params?: ApplicationListParams): Promise<PaginatedResponse<Application>>;
+    /**
+     * Create a new application.
+     * @param data - The application name and optional description.
+     * @returns The created application including one-time `client_secret`.
+     */
+    createApplication(data: ApplicationCreateData): Promise<ApplicationCreateResponse>;
+    /**
+     * Get a single application by its ID.
+     * @param appId - The application ID.
+     * @returns The application details (secret is never included).
+     */
+    getApplication(appId: string): Promise<Application>;
+    /**
+     * Fully update an application (PUT — all fields replaced).
+     * @param appId - The application ID.
+     * @param data - The full updated application data.
+     * @returns The updated application.
+     */
+    updateApplication(appId: string, data: ApplicationUpdateData): Promise<Application>;
+    /**
+     * Partially update an application (PATCH — only provided fields are changed).
+     * @param appId - The application ID.
+     * @param data - The fields to update.
+     * @returns The updated application.
+     */
+    patchApplication(appId: string, data: Partial<ApplicationUpdateData>): Promise<Application>;
+    /**
+     * Delete an application permanently.
+     * @param appId - The application ID.
+     */
+    deleteApplication(appId: string): Promise<void>;
+    /**
+     * Regenerate credentials for an application.
+     * **Warning:** Old credentials are immediately invalidated. The new secret is shown only once.
+     * @param appId - The application ID.
+     * @param confirmation - Must be the string `"REGENERATE"` to confirm the irreversible action.
+     * @returns The new credentials (access_key + access_secret shown once).
+     */
+    regenerateCredentials(appId: string, confirmation?: string): Promise<ApplicationRegenerateResponse>;
+}
+
+/**
+ * All possible audit log action types.
+ */
+type AuditAction = 'login' | 'login_failed' | 'logout' | 'logout_all' | 'token_refresh' | 'password_change' | 'password_reset_request' | 'password_reset_complete' | '2fa_enabled' | '2fa_disabled' | '2fa_backup_used' | 'account_created' | 'account_locked' | 'account_unlocked' | 'email_verified' | 'phone_verified' | 'role_assigned' | 'role_removed' | 'permission_changed' | 'app_created' | 'app_credentials_regenerated' | 'account_deleted' | 'suspicious_activity' | 'session_limit_exceeded' | 'device_limit_exceeded' | 'new_device_detected' | 'agent_action';
+/** An audit log entry. */
+interface AuditLog {
+    id: string;
+    user?: number | null;
+    user_email: string;
+    action: AuditAction;
+    ip_address?: string | null;
+    user_agent?: string;
+    application?: number | null;
+    application_name: string;
+    details?: unknown;
+    created_at: string;
+}
+/** A login attempt record. */
+interface LoginAttempt {
+    id: string;
+    identifier: string;
+    ip_address: string;
+    application?: number | null;
+    success?: boolean;
+    failure_reason?: string;
+    created_at: string;
+}
+/** A blacklisted (revoked) JWT token. */
+interface BlacklistedToken {
+    id: string;
+    token_jti: string;
+    user?: number | null;
+    user_email: string;
+    blacklisted_at: string;
+    expires_at: string;
+    reason?: string;
+    is_expired: string;
+}
+/** A refresh token as seen from the admin view (token value hidden). */
+interface RefreshTokenInfo {
+    id: string;
+    user: number;
+    user_email: string;
+    application: number;
+    application_name: string;
+    device_info?: string;
+    ip_address?: string | null;
+    is_revoked?: boolean;
+    is_expired: string;
+    expires_at: string;
+    created_at: string;
+    last_used_at: string;
+}
+/** Parameters accepted by `listAuditLogs()`. */
+interface AuditLogListParams {
+    /** Filter by user ID. */
+    user_id?: string;
+    /** Filter by action (login, login_failed, password_change, etc.). */
+    action?: string;
+    /** Filter by IP address. */
+    ip_address?: string;
+    /** Filter by application ID. */
+    application_id?: string;
+    /** After date (YYYY-MM-DD). */
+    date_from?: string;
+    /** Before date (YYYY-MM-DD). */
+    date_to?: string;
+    /** Sort field: `created_at`, `action`, `user`. */
+    ordering?: string;
+    /** Page number (1-indexed). */
+    page?: number;
+    /** Items per page (max 100). */
+    page_size?: number;
+}
+/** Parameters accepted by `listLoginAttempts()`. */
+interface LoginAttemptListParams {
+    /** Filter by identifier (email/phone). */
+    identifier?: string;
+    /** Filter by IP address. */
+    ip_address?: string;
+    /** Filter by success/failure. */
+    success?: boolean;
+    /** After date (YYYY-MM-DD). */
+    date_from?: string;
+    /** Before date (YYYY-MM-DD). */
+    date_to?: string;
+    /** Sort field: `created_at`, `identifier`, `ip_address`. */
+    ordering?: string;
+    /** Page number (1-indexed). */
+    page?: number;
+    /** Items per page (max 100). */
+    page_size?: number;
+}
+/** Parameters accepted by `listBlacklistedTokens()`. */
+interface BlacklistedTokenListParams {
+    /** Filter by user ID. */
+    user_id?: string;
+    /** Filter by reason (`logout`, `password_change`, `security`). */
+    reason?: string;
+    /** Filter by expired (true/false). */
+    expired?: boolean;
+    /** Sort field: `blacklisted_at`, `expires_at`. */
+    ordering?: string;
+    /** Page number (1-indexed). */
+    page?: number;
+    /** Items per page (max 100). */
+    page_size?: number;
+}
+/** Parameters accepted by `listRefreshTokens()`. */
+interface RefreshTokenListParams {
+    /** Filter by user ID. */
+    user_id?: string;
+    /** Filter by application ID. */
+    application_id?: string;
+    /** Filter by revoked status. */
+    is_revoked?: boolean;
+    /** Filter by expired status. */
+    expired?: boolean;
+    /** Sort field: `created_at`, `expires_at`, `last_used_at`. */
+    ordering?: string;
+    /** Page number (1-indexed). */
+    page?: number;
+    /** Items per page (max 100). */
+    page_size?: number;
+}
+declare class AdminModule {
+    private client;
+    constructor(client: TenxyteHttpClient);
+    /**
+     * List audit log entries (paginated).
+     * @param params - Optional filters and pagination.
+     */
+    listAuditLogs(params?: AuditLogListParams): Promise<PaginatedResponse<AuditLog>>;
+    /**
+     * Get a single audit log entry by ID.
+     * @param logId - The audit log entry ID.
+     */
+    getAuditLog(logId: string): Promise<AuditLog>;
+    /**
+     * List login attempt records (paginated).
+     * @param params - Optional filters and pagination.
+     */
+    listLoginAttempts(params?: LoginAttemptListParams): Promise<PaginatedResponse<LoginAttempt>>;
+    /**
+     * List blacklisted (revoked) JWT tokens (paginated).
+     * @param params - Optional filters and pagination.
+     */
+    listBlacklistedTokens(params?: BlacklistedTokenListParams): Promise<PaginatedResponse<BlacklistedToken>>;
+    /**
+     * Remove expired blacklisted tokens.
+     * @returns A summary object with cleanup results.
+     */
+    cleanupBlacklistedTokens(): Promise<Record<string, unknown>>;
+    /**
+     * List refresh tokens (admin view — token values are hidden).
+     * @param params - Optional filters and pagination.
+     */
+    listRefreshTokens(params?: RefreshTokenListParams): Promise<PaginatedResponse<RefreshTokenInfo>>;
+    /**
+     * Revoke a specific refresh token.
+     * @param tokenId - The refresh token ID.
+     * @returns The updated refresh token record.
+     */
+    revokeRefreshToken(tokenId: string): Promise<RefreshTokenInfo>;
+}
+
+/** Body accepted by `requestAccountDeletion()`. */
+interface AccountDeletionRequestData {
+    /** Current password (required for confirmation). */
+    password: string;
+    /** 6-digit OTP code (required if 2FA is enabled). */
+    otp_code?: string;
+    /** Optional reason for the deletion request. */
+    reason?: string;
+}
+/** Response returned by `requestAccountDeletion()`. */
+interface AccountDeletionRequestResponse {
+    message?: string;
+    deletion_request_id?: number;
+    scheduled_deletion_date?: string;
+    grace_period_days?: number;
+    cancellation_token?: string;
+    data_retention_policy?: {
+        anonymization_after?: string;
+        final_deletion_after?: string;
+    };
+}
+/** Response returned by `confirmAccountDeletion()`. */
+interface AccountDeletionConfirmResponse {
+    message?: string;
+    deletion_confirmed?: boolean;
+    grace_period_ends?: string;
+    cancellation_instructions?: string;
+}
+/** Response returned by `cancelAccountDeletion()`. */
+interface AccountDeletionCancelResponse {
+    message?: string;
+    deletion_cancelled?: boolean;
+    account_reactivated?: boolean;
+    cancellation_time?: string;
+    security_note?: string;
+}
+/**
+ * Deletion status for the current user.
+ * The shape is not strictly defined by the API schema — it returns a generic object.
+ */
+type DeletionStatus = Record<string, unknown>;
+/** Response returned by `exportUserData()`. */
+interface UserDataExport {
+    user_info?: Record<string, unknown>;
+    roles?: unknown[];
+    permissions?: unknown[];
+    applications?: unknown[];
+    audit_logs?: unknown[];
+    export_metadata?: Record<string, unknown>;
+}
+/** Possible statuses for a deletion request. */
+type DeletionRequestStatus = 'pending' | 'confirmation_sent' | 'confirmed' | 'completed' | 'cancelled';
+/** A GDPR account deletion request (admin view). */
+interface DeletionRequest {
+    id: string;
+    user: number;
+    user_email: string;
+    status?: DeletionRequestStatus;
+    requested_at: string;
+    confirmed_at?: string | null;
+    grace_period_ends_at?: string | null;
+    completed_at?: string | null;
+    ip_address?: string | null;
+    reason?: string;
+    admin_notes?: string;
+    processed_by?: number | null;
+    processed_by_email: string;
+    is_grace_period_expired: string;
+}
+/** Parameters accepted by `listDeletionRequests()`. */
+interface DeletionRequestListParams {
+    /** Filter by user ID. */
+    user_id?: number;
+    /** Filter by request status. */
+    status?: DeletionRequestStatus;
+    /** After date (YYYY-MM-DD). */
+    date_from?: string;
+    /** Before date (YYYY-MM-DD). */
+    date_to?: string;
+    /** Filter requests whose grace period expires within 7 days. */
+    grace_period_expiring?: boolean;
+    /** Sort field: `requested_at`, `confirmed_at`, `grace_period_ends_at`, `user__email`. */
+    ordering?: string;
+    /** Page number (1-indexed). */
+    page?: number;
+    /** Items per page (max 100). */
+    page_size?: number;
+}
+/** Body accepted by `processDeletionRequest()`. */
+interface ProcessDeletionRequestData {
+    /** Must be `"PERMANENTLY DELETE"` to confirm the irreversible action. */
+    confirmation: string;
+    /** Optional admin notes. */
+    admin_notes?: string;
+}
+/** Response returned by `processDeletionRequest()`. */
+interface ProcessDeletionResponse {
+    message?: string;
+    deletion_completed?: boolean;
+    processed_at?: string;
+    data_anonymized?: boolean;
+    audit_log_id?: number;
+    user_notified?: boolean;
+}
+/** Response returned by `processExpiredDeletions()`. */
+interface ProcessExpiredDeletionsResponse {
+    message?: string;
+    processed_count?: number;
+    failed_count?: number;
+    skipped_count?: number;
+    processing_time?: number;
+    details?: {
+        request_id?: number;
+        user_email?: string;
+        status?: string;
+        grace_period_expired?: string;
+    }[];
+}
+declare class GdprModule {
+    private client;
+    constructor(client: TenxyteHttpClient);
+    /**
+     * Request account deletion (GDPR-compliant).
+     * Initiates a 30-day grace period during which the user can cancel.
+     * @param data - Password (+ optional OTP code and reason).
+     */
+    requestAccountDeletion(data: AccountDeletionRequestData): Promise<AccountDeletionRequestResponse>;
+    /**
+     * Confirm the account deletion using the token received by email.
+     * The token is valid for 24 hours. After confirmation the account enters the 30-day grace period.
+     * @param token - The confirmation token from the email.
+     */
+    confirmAccountDeletion(token: string): Promise<AccountDeletionConfirmResponse>;
+    /**
+     * Cancel a pending account deletion during the grace period.
+     * The account is immediately reactivated.
+     * @param password - The current password for security.
+     */
+    cancelAccountDeletion(password: string): Promise<AccountDeletionCancelResponse>;
+    /**
+     * Get the deletion status for the current user.
+     * Includes pending, confirmed, or cancelled requests.
+     */
+    getAccountDeletionStatus(): Promise<DeletionStatus>;
+    /**
+     * Export all personal data (GDPR right to data portability).
+     * @param password - The current password for security.
+     */
+    exportUserData(password: string): Promise<UserDataExport>;
+    /**
+     * List deletion requests (admin, paginated).
+     * @param params - Optional filters and pagination.
+     */
+    listDeletionRequests(params?: DeletionRequestListParams): Promise<PaginatedResponse<DeletionRequest>>;
+    /**
+     * Get a single deletion request by ID.
+     * @param requestId - The deletion request ID.
+     */
+    getDeletionRequest(requestId: string): Promise<DeletionRequest>;
+    /**
+     * Process (execute) a confirmed deletion request.
+     * **WARNING:** This is irreversible and permanently destroys all user data.
+     * @param requestId - The deletion request ID.
+     * @param data - Must include `{ confirmation: "PERMANENTLY DELETE" }`.
+     */
+    processDeletionRequest(requestId: string | number, data: ProcessDeletionRequestData): Promise<ProcessDeletionResponse>;
+    /**
+     * Batch-process all confirmed deletion requests whose 30-day grace period has expired.
+     * Typically run by a daily cron job.
+     */
+    processExpiredDeletions(): Promise<ProcessExpiredDeletionsResponse>;
+}
+
+/** Parameters accepted by `getStats()`. */
+interface DashboardStatsParams {
+    /** Analysis period (default: `"7d"`). */
+    period?: '7d' | '30d' | '90d';
+    /** Include comparison with previous period. */
+    compare?: boolean;
+}
+/** Global dashboard statistics returned by `getStats()`. */
+interface DashboardStats {
+    summary?: {
+        total_users?: number;
+        active_users?: number;
+        total_organizations?: number;
+        total_applications?: number;
+        active_sessions?: number;
+        pending_deletions?: number;
+    };
+    trends?: {
+        user_growth?: number;
+        login_success_rate?: number;
+        application_usage?: number;
+        security_incidents?: number;
+    };
+    organization_context?: {
+        current_org?: Record<string, unknown> | null;
+        user_role?: string;
+        accessible_orgs?: number;
+        org_specific_stats?: Record<string, unknown>;
+    };
+    quick_actions?: {
+        action?: string;
+        count?: number;
+        priority?: string;
+    }[];
+    charts?: {
+        daily_logins?: unknown[];
+        user_registrations?: unknown[];
+        security_events?: unknown[];
+    };
+}
+/**
+ * Authentication statistics returned by `getAuthStats()`.
+ * Login stats, methods, registrations, tokens, top failure reasons, 7-day graphs.
+ */
+type AuthStats = Record<string, unknown>;
+/**
+ * Security statistics returned by `getSecurityStats()`.
+ * Audit summary, blacklisted tokens, suspicious activity, 2FA adoption.
+ */
+type SecurityStats = Record<string, unknown>;
+/**
+ * GDPR statistics returned by `getGdprStats()`.
+ * Deletion requests by status, data exports.
+ */
+type GdprStats = Record<string, unknown>;
+/**
+ * Organization statistics returned by `getOrganizationStats()`.
+ * Organizations, members, roles, top organizations.
+ */
+type OrgStats = Record<string, unknown>;
+declare class DashboardModule {
+    private client;
+    constructor(client: TenxyteHttpClient);
+    /**
+     * Get global cross-module dashboard statistics.
+     * Data varies based on the organizational context (`X-Org-Slug`) and permissions.
+     * Covers users, authentication, applications, security, and GDPR metrics.
+     * Charts span the last 7 days with previous-period comparisons.
+     * @param params - Optional period and comparison flag.
+     */
+    getStats(params?: DashboardStatsParams): Promise<DashboardStats>;
+    /**
+     * Get authentication-specific statistics.
+     * Includes login stats, methods breakdown, registrations, tokens, top failure reasons, and 7-day graphs.
+     */
+    getAuthStats(): Promise<AuthStats>;
+    /**
+     * Get security-specific statistics.
+     * Includes audit summary, blacklisted tokens, suspicious activity, and 2FA adoption.
+     */
+    getSecurityStats(): Promise<SecurityStats>;
+    /**
+     * Get GDPR-specific statistics.
+     * Includes deletion requests by status and data export metrics.
+     */
+    getGdprStats(): Promise<GdprStats>;
+    /**
+     * Get organization-specific statistics.
+     * Includes organizations, members, roles, and top organizations.
+     */
+    getOrganizationStats(): Promise<OrgStats>;
+}
+
+interface DecodedTenxyteToken {
+    exp?: number;
+    iat?: number;
+    sub?: string;
+    roles?: string[];
+    permissions?: string[];
+    [key: string]: any;
+}
+/**
+ * Decodes the payload of a JWT without verifying the signature.
+ * Suitable for client-side routing and UI state.
+ */
+declare function decodeJwt(token: string): DecodedTenxyteToken | null;
+
+/**
+ * Map of all SDK events and their associated payload types.
+ */
+interface TenxyteEventMap {
+    /** Fired when the active session can no longer be recovered (refresh token expired/revoked). */
+    'session:expired': void;
+    /** Fired after a successful silent token refresh. Payload is the new access token. */
+    'token:refreshed': {
+        accessToken: string;
+    };
+    /** Fired after tokens are persisted to storage (login, register, refresh). */
+    'token:stored': {
+        accessToken: string;
+        refreshToken?: string;
+    };
+    /** Fired when an AI agent action requires human-in-the-loop approval (HTTP 202). */
+    'agent:awaiting_approval': {
+        action: unknown;
+    };
+    /** Fired on unrecoverable SDK errors that are not tied to a specific call. */
+    'error': {
+        error: unknown;
+    };
+}
+/**
  * The primary entry point for the Tenxyte SDK.
  * Groups together logic for authentication, security, organization switching, and AI control.
  */
 declare class TenxyteClient {
+    /** Fully resolved configuration (all defaults applied). */
+    readonly config: ResolvedTenxyteConfig;
+    /** Persistent token storage back-end (defaults to MemoryStorage). */
+    readonly storage: TenxyteStorage;
+    /** Shared mutable context used by interceptors (org slug, agent trace ID). */
+    readonly context: TenxyteContext;
     /** The core HTTP wrapper handling network interception and parsing */
     http: TenxyteHttpClient;
     /** Authentication module (Login, Signup, Magic link, session handling) */
@@ -1691,8 +2646,22 @@ declare class TenxyteClient {
     b2b: B2bModule;
     /** AIRS - AI Responsibility & Security module (Agent tokens, Circuit breakers, HITL) */
     ai: AiModule;
+    /** Applications module (API client CRUD, credential management) */
+    applications: ApplicationsModule;
+    /** Admin module (audit logs, login attempts, blacklisted tokens, refresh tokens) */
+    admin: AdminModule;
+    /** GDPR module (account deletion, data export, deletion request management) */
+    gdpr: GdprModule;
+    /** Dashboard module (global, auth, security, GDPR, organization statistics) */
+    dashboard: DashboardModule;
+    /** Internal event emitter used via composition. */
+    private emitter;
     /**
      * Initializes the SDK with connection details for your Tenxyte-powered API.
+     *
+     * Accepts the full TenxyteClientConfig. Minimal usage with just { baseUrl }
+     * is still supported for backward compatibility.
+     *
      * @param options Configuration options including `baseUrl` and custom headers like `X-Access-Key`
      *
      * @example
@@ -1703,7 +2672,96 @@ declare class TenxyteClient {
      * });
      * ```
      */
-    constructor(options: HttpClientOptions);
+    constructor(options: TenxyteClientConfig);
+    /** Subscribe to an SDK event. Returns an unsubscribe function. */
+    on<K extends keyof TenxyteEventMap>(event: K, callback: (payload: TenxyteEventMap[K]) => void): () => void;
+    /** Subscribe to an SDK event exactly once. Returns an unsubscribe function. */
+    once<K extends keyof TenxyteEventMap>(event: K, callback: (payload: TenxyteEventMap[K]) => void): () => void;
+    /** Unsubscribe a previously registered callback from an SDK event. */
+    off<K extends keyof TenxyteEventMap>(event: K, callback: (payload: TenxyteEventMap[K]) => void): void;
+    /** Emit an SDK event (internal use). */
+    emit<K extends keyof TenxyteEventMap>(event: K, payload: TenxyteEventMap[K]): void;
+    /**
+     * Check whether a valid (non-expired) access token exists in storage.
+     * Performs a synchronous JWT expiry check — no network call.
+     */
+    isAuthenticated(): Promise<boolean>;
+    /**
+     * Return the current access token from storage, or `null` if absent.
+     */
+    getAccessToken(): Promise<string | null>;
+    /**
+     * Decode the current access token and return the JWT payload.
+     * Returns `null` if no token is stored or if decoding fails.
+     * No network call is made — this reads from the cached JWT.
+     */
+    getCurrentUser(): Promise<DecodedTenxyteToken | null>;
+    /**
+     * Check whether the stored access token is expired without making a network call.
+     * Returns `true` if expired or if no token is present.
+     */
+    isTokenExpired(): Promise<boolean>;
+    /** Synchronous helper: checks JWT `exp` claim against current time. */
+    private isTokenExpiredSync;
+    /**
+     * Returns a synchronous snapshot of the SDK state.
+     * Designed for consumption by framework wrappers (React, Vue, etc.).
+     * Note: This is async because storage access may be async.
+     */
+    getState(): Promise<TenxyteClientState>;
+}
+/**
+ * Snapshot of the SDK state, intended for framework wrappers.
+ *
+ * **Event contract for reactive bindings:**
+ * - `token:stored`     → re-read state (login, register, refresh succeeded)
+ * - `token:refreshed`  → access token was silently rotated
+ * - `session:expired`  → clear authenticated state
+ * - `agent:awaiting_approval` → an AI action needs human confirmation
+ * - `error`            → unrecoverable SDK error
+ */
+interface TenxyteClientState {
+    /** Whether the user has a valid, non-expired access token. */
+    isAuthenticated: boolean;
+    /** Decoded JWT payload of the current access token, or `null`. */
+    user: DecodedTenxyteToken | null;
+    /** Raw access token string, or `null`. */
+    accessToken: string | null;
+    /** Currently active organization slug, or `null`. */
+    activeOrg: string | null;
+    /** Whether the SDK is operating in AI Agent mode. */
+    isAgentMode: boolean;
 }
 
-export { type AdminUpdateUserParams, type AgentPendingAction, type AgentTokenSummary, AuthModule, type GeneratedSchema, type HttpClientOptions, type LoginEmailOptions, type LoginPhoneOptions, type MagicLinkRequest, type Organization, type PaginatedResponse, type Permission, RbacModule, type RegisterRequest, type RequestConfig, type Role, SecurityModule, type SocialLoginRequest, TenxyteClient, type TenxyteError, type TenxyteErrorCode, TenxyteHttpClient, type TenxyteUser, type TokenPair, type UpdateProfileParams, UserModule };
+/**
+ * Lightweight EventEmitter for TenxyteClient.
+ * Provides `.on`, `.once`, `.off`, and `.emit`.
+ */
+declare class EventEmitter<Events extends Record<string, any>> {
+    private events;
+    constructor();
+    /**
+     * Subscribe to an event.
+     * @param event The event name
+     * @param callback The callback function
+     * @returns Unsubscribe function
+     */
+    on<K extends keyof Events>(event: K, callback: (payload: Events[K]) => void): () => void;
+    /**
+     * Unsubscribe from an event.
+     * @param event The event name
+     * @param callback The exact callback function that was passed to .on()
+     */
+    off<K extends keyof Events>(event: K, callback: (payload: Events[K]) => void): void;
+    /**
+     * Subscribe to an event exactly once.
+     */
+    once<K extends keyof Events>(event: K, callback: (payload: Events[K]) => void): () => void;
+    /**
+     * Emit an event internally.
+     */
+    emit<K extends keyof Events>(event: K, payload: Events[K]): void;
+    removeAllListeners(): void;
+}
+
+export { type AccountDeletionCancelResponse, type AccountDeletionConfirmResponse, type AccountDeletionRequestData, type AccountDeletionRequestResponse, AdminModule, type AdminUpdateUserParams, type AgentPendingAction, type AgentTokenSummary, AiModule, type Application, type ApplicationCreateData, type ApplicationCreateResponse, type ApplicationListParams, type ApplicationRegenerateResponse, type ApplicationUpdateData, ApplicationsModule, type AuditAction, type AuditLog, type AuditLogListParams, AuthModule, type AuthStats, B2bModule, type BlacklistedToken, type BlacklistedTokenListParams, CookieStorage, type CustomDeviceInfo, DashboardModule, type DashboardStats, type DashboardStatsParams, type DecodedTenxyteToken, type DeletionRequest, type DeletionRequestListParams, type DeletionRequestStatus, type DeletionStatus, EventEmitter, GdprModule, type GdprStats, type GeneratedSchema, type HttpClientOptions, LocalStorage, type LogLevel, type LoginAttempt, type LoginAttemptListParams, type LoginEmailOptions, type LoginPhoneOptions, type MagicLinkRequest, type MagicLinkResponse, MemoryStorage, NOOP_LOGGER, type OrgMembership, type OrgStats, type OrgTreeNode, type Organization, type PaginatedResponse, type Permission, type ProcessDeletionRequestData, type ProcessDeletionResponse, type ProcessExpiredDeletionsResponse, RbacModule, type RefreshTokenInfo, type RefreshTokenListParams, type RegisterRequest, type RegisterResponse, type RequestConfig, type ResolvedTenxyteConfig, type RetryConfig, type Role, SDK_VERSION, SecurityModule, type SecurityStats, type SocialLoginRequest, TenxyteClient, type TenxyteClientConfig, type TenxyteClientState, type TenxyteContext, type TenxyteError, type TenxyteErrorCode, type TenxyteEventMap, TenxyteHttpClient, type TenxyteLogger, type TenxyteStorage, type TenxyteUser, type TokenPair, type UpdateProfileParams, type UserDataExport, UserModule, buildDeviceInfo, createAuthInterceptor, createDeviceInfoInterceptor, createRefreshInterceptor, createRetryInterceptor, decodeJwt, resolveConfig };
