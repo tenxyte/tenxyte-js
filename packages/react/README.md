@@ -20,6 +20,8 @@ import App from './App';
 const tx = new TenxyteClient({
     baseUrl: 'https://api.example.com',
     headers: { 'X-Access-Key': 'your-api-key' },
+    // Enable if backend uses HttpOnly cookie refresh tokens
+    // cookieMode: true,
 });
 
 function Root() {
@@ -183,7 +185,7 @@ function AdminPanel() {
 
 | Package | Version |
 |---|---|
-| `@tenxyte/core` | `^0.9.2` |
+| `@tenxyte/core` | `^0.10.0` |
 | `react` | `^18.0.0 \|\| ^19.0.0` |
 
 ## License

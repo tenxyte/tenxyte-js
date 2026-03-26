@@ -88,6 +88,10 @@ const tx = new TenxyteClient({
 
     // Optional — override auto-detected device info
     deviceInfoOverride: { app_name: 'MyApp', app_version: '2.0.0' },
+
+    // Optional — cookie-based refresh token transport (default: false)
+    // Enable when backend has TENXYTE_REFRESH_TOKEN_COOKIE_ENABLED=True
+    cookieMode: false,
 });
 ```
 
@@ -128,9 +132,16 @@ const tokens = await tx.auth.verifyMagicLink(urlToken);
 
 // Social OAuth2
 const tokens = await tx.auth.loginWithSocial('google', { id_token: 'jwt...' });
-const tokens = await tx.auth.handleSocialCallback('github', 'auth_code', 'https://myapp.com/cb');
 
-// Session management
+// Social OAuth2 with PKCE (RFC 7636)
+const tokens = await tx.auth.loginWithSocial('google', {
+    code: 'auth_code',
+    redirect_uri: 'https://myapp.com/cb',
+    code_verifier: 'pkce_verifier_string',
+});
+const tokens = await tx.auth.handleSocialCallback('github', 'auth_code', 'https://myapp.com/cb', 'pkce_verifier');
+
+// Session management (refreshToken param is optional in cookie mode)
 await tx.auth.logout('refresh_token_value');
 await tx.auth.logoutAll();
 await tx.auth.refreshToken('refresh_token_value');
@@ -384,6 +395,39 @@ const state = await tx.getState();
 
 ---
 
+## Migration Guide: v0.9 → v0.10
+
+### New Features in v0.10
+
+- **Cookie-based refresh tokens** — New `cookieMode` config option. When enabled, the SDK uses `credentials: 'include'` for refresh/logout requests and does not require a stored refresh token for silent refresh.
+- **PKCE support** — `code_verifier` parameter added to `SocialLoginRequest` and `handleSocialCallback()` for RFC 7636 compliance.
+- **Expanded error codes** — `TenxyteErrorCode` now includes all backend error codes: `MISSING_REFRESH_TOKEN`, `INVALID_REDIRECT_URI`, `PASSWORD_BREACHED`, `PASSWORD_REUSED`, `WEBAUTHN_*`, `LINK_EXPIRED`, `2FA_ALREADY_ENABLED`, and more.
+- **Optional refresh token in responses** — `TokenPair.refresh_token` is now optional (absent when cookie mode is enabled on the backend).
+
+### Breaking Changes
+
+1. **`TokenPair.refresh_token` is now optional** — If you access `tokens.refresh_token` without a null check, add one:
+   ```typescript
+   if (tokens.refresh_token) {
+       // Store or use the refresh token
+   }
+   ```
+
+2. **`logout()` and `refreshToken()` parameters are now optional** — In cookie mode, you can call them without arguments:
+   ```typescript
+   // Cookie mode (refresh token is in HttpOnly cookie)
+   await tx.auth.logout();
+   await tx.auth.refreshToken();
+
+   // Classic mode (still works)
+   await tx.auth.logout('refresh_token_value');
+   await tx.auth.refreshToken('refresh_token_value');
+   ```
+
+3. **`handleSocialCallback()` now accepts an optional 4th parameter** (`codeVerifier`).
+
+---
+
 ## Migration Guide: v0.8 → v0.9
 
 ### Breaking Changes
@@ -436,6 +480,7 @@ const state = await tx.getState();
 - High-level helpers (`isAuthenticated`, `getCurrentUser`, `isTokenExpired`)
 - `getState()` for framework wrapper integration
 - EventEmitter for reactive state (`session:expired`, `token:refreshed`, etc.)
+- WebAuthn / Passkeys (FIDO2) support
 
 ---
 

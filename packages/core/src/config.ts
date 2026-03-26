@@ -126,6 +126,16 @@ export interface TenxyteClientConfig {
      * with exponential backoff. Pass `{}` for sensible defaults.
      */
     retryConfig?: RetryConfig;
+
+    /**
+     * When true, the SDK assumes the backend is configured with
+     * `TENXYTE_REFRESH_TOKEN_COOKIE_ENABLED=True`. In this mode:
+     * - `refresh_token` is omitted from JSON response bodies (delivered via HttpOnly cookie).
+     * - `credentials: 'include'` is added to refresh/logout requests so the browser sends cookies.
+     * - The SDK does not require a stored refresh token to attempt a silent refresh.
+     * Defaults to false.
+     */
+    cookieMode?: boolean;
 }
 
 /**
@@ -145,6 +155,7 @@ export interface ResolvedTenxyteConfig {
     logLevel: LogLevel;
     deviceInfoOverride: CustomDeviceInfo | undefined;
     retryConfig: RetryConfig | undefined;
+    cookieMode: boolean;
 }
 
 /** Silent no-op logger used when the consumer does not provide one. */
@@ -178,5 +189,6 @@ export function resolveConfig(config: TenxyteClientConfig): ResolvedTenxyteConfi
         logLevel: config.logLevel ?? 'silent',
         deviceInfoOverride: config.deviceInfoOverride,
         retryConfig: config.retryConfig,
+        cookieMode: config.cookieMode ?? false,
     };
 }

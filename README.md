@@ -106,7 +106,8 @@ const { isAuthenticated, loginWithEmail, logout } = useAuth();
 ✨ **Core Authentication**
 - JWT with access + refresh tokens, auto-rotation, blacklisting
 - Login via email / phone, Magic Links (passwordless), Passkeys (WebAuthn/FIDO2)
-- Social Login — Google, GitHub, Microsoft, Facebook
+- Social Login — Google, GitHub, Microsoft, Facebook (with PKCE support)
+- Cookie-based refresh tokens (HttpOnly `Set-Cookie` transport)
 - Multi-application support (`X-Access-Key` / `X-Access-Secret`)
 
 🔐 **Security**
@@ -214,6 +215,10 @@ const tx = new TenxyteClient({
     // Optional — pluggable logger
     logger: console,
     logLevel: 'debug', // 'silent' | 'error' | 'warn' | 'debug'
+
+    // Optional — cookie-based refresh token transport (default: false)
+    // Enable when backend has TENXYTE_REFRESH_TOKEN_COOKIE_ENABLED=True
+    cookieMode: false,
 });
 ```
 
@@ -374,4 +379,12 @@ MIT — see [LICENSE](./LICENSE).
 
 ## Changelog
 
-- [`@tenxyte/core` CHANGELOG](./packages/core/CHANGELOG.md)
+### v0.10.0
+
+- **Cookie mode** — `cookieMode` config option for HttpOnly refresh token transport
+- **PKCE** — `code_verifier` parameter for social OAuth2 (RFC 7636)
+- **Expanded error codes** — 30+ new `TenxyteErrorCode` entries (`MISSING_REFRESH_TOKEN`, `INVALID_REDIRECT_URI`, `PASSWORD_BREACHED`, etc.)
+- **Optional `refresh_token`** — `TokenPair.refresh_token` is now optional (absent in cookie mode)
+- **Optional params** — `logout()` and `refreshToken()` no longer require a refresh token argument in cookie mode
+
+See [`@tenxyte/core` CHANGELOG](./packages/core/CHANGELOG.md) for full details.

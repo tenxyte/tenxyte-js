@@ -21,6 +21,8 @@ import App from './App.vue';
 const tx = new TenxyteClient({
     baseUrl: 'https://api.example.com',
     headers: { 'X-Access-Key': 'your-api-key' },
+    // Enable if backend uses HttpOnly cookie refresh tokens
+    // cookieMode: true,
 });
 
 const app = createApp(App);
@@ -193,7 +195,7 @@ The `tenxytePlugin` provides the `TenxyteClient` instance via Vue's dependency i
 
 | Package | Version |
 |---|---|
-| `@tenxyte/core` | `^0.9.2` |
+| `@tenxyte/core` | `^0.10.0` |
 | `vue` | `^3.3.0` |
 
 ## License

@@ -28,7 +28,7 @@ export interface TenxyteUser {
  */
 export interface TokenPair {
     access_token: string; // JWT Bearer
-    refresh_token: string;
+    refresh_token?: string; // Absent when TENXYTE_REFRESH_TOKEN_COOKIE_ENABLED=True (delivered via HttpOnly cookie)
     token_type: 'Bearer';
     expires_in: number; // Current access_token lifetime in seconds
     device_summary: string | null; // e.g., "desktop — windows 11 — chrome 122" (null if device_info absent)
@@ -61,14 +61,33 @@ export type TenxyteErrorCode =
     | 'RATE_LIMITED'
     | 'INVALID_OTP'
     | 'OTP_EXPIRED'
+    | 'MAX_ATTEMPTS_REACHED'
+    | 'RESET_FAILED'
     | 'INVALID_PROVIDER'
     | 'SOCIAL_AUTH_FAILED'
     | 'VALIDATION_URL_REQUIRED'
     | 'INVALID_TOKEN'
+    | 'MISSING_REFRESH_TOKEN'
+    | 'APP_AUTH_REQUIRED'
+    | 'REGISTRATION_FAILED'
+    | 'INVALID_2FA_CODE'
+    // Social / OAuth
+    | 'REDIRECT_URI_REQUIRED'
+    | 'REDIRECT_URI_NOT_ALLOWED'
+    | 'INVALID_REDIRECT_URI'
+    | 'MISSING_REDIRECT_URI'
+    | 'MISSING_CREDENTIALS'
+    | 'MISSING_CODE'
+    | 'PROVIDER_NOT_SUPPORTED'
+    | 'PROVIDER_AUTH_FAILED'
+    | 'CODE_EXCHANGE_FAILED'
+    | 'CALLBACK_ERROR'
     // User / Account
     | 'CONFIRMATION_REQUIRED'
     | 'PASSWORD_REQUIRED'
     | 'INVALID_PASSWORD'
+    | 'PASSWORD_BREACHED'
+    | 'PASSWORD_REUSED'
     | 'INVALID_DEVICE_INFO'
     // B2B / Organizations
     | 'ORG_NOT_FOUND'
@@ -90,6 +109,22 @@ export type TenxyteErrorCode =
     | 'RATE_LIMIT_EXCEEDED'
     | 'HEARTBEAT_MISSING'
     | 'AIRS_DISABLED'
+    // Magic Link
+    | 'TOKEN_REQUIRED'
+    | 'MAGIC_LINK_INVALID'
+    | 'LINK_EXPIRED'
+    | 'LINK_ALREADY_USED'
+    // 2FA / TOTP
+    | '2FA_ALREADY_ENABLED'
+    | 'INVALID_CODE'
+    | 'CODE_REQUIRED'
+    // WebAuthn
+    | 'WEBAUTHN_DISABLED'
+    | 'WEBAUTHN_ERROR'
+    | 'WEBAUTHN_AUTH_FAILED'
+    | 'CREDENTIAL_EXISTS'
+    | 'CREDENTIAL_NOT_FOUND'
+    | 'REPLAY_ATTACK'
     // Network / Transport
     | 'TIMEOUT'
     | 'NETWORK_ERROR';

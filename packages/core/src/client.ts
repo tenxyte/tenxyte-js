@@ -131,6 +131,7 @@ export class TenxyteClient {
                         this.emit('token:refreshed', { accessToken });
                         this.emit('token:stored', { accessToken, refreshToken });
                     },
+                    this.config.cookieMode,
                 ),
             );
         }

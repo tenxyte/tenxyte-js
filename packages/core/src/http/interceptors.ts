@@ -36,6 +36,7 @@ export function createRefreshInterceptor(
     storage: TenxyteStorage,
     onSessionExpired: () => void,
     onTokenRefreshed?: (accessToken: string, refreshToken?: string) => void,
+    cookieMode: boolean = false,
 ) {
     let isRefreshing = false;
     let refreshQueue: Array<(token: string | null) => void> = [];
@@ -50,7 +51,9 @@ export function createRefreshInterceptor(
         if (response.status === 401 && !request.url.includes('/auth/refresh') && !request.url.includes('/auth/login')) {
             const refreshToken = await storage.getItem('tx_refresh');
 
-            if (!refreshToken) {
+            // In cookie mode the refresh token lives in an HttpOnly cookie,
+            // so we don't need one in storage to attempt a refresh.
+            if (!refreshToken && !cookieMode) {
                 onSessionExpired();
                 return response; // Pass through 401 if we cannot refresh
             }
@@ -73,10 +76,15 @@ export function createRefreshInterceptor(
             isRefreshing = true;
 
             try {
+                const refreshBody: Record<string, string> = {};
+                if (refreshToken) {
+                    refreshBody.refresh_token = refreshToken;
+                }
                 const refreshResponse = await fetch(`${client['baseUrl']}/auth/refresh/`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ refresh_token: refreshToken })
+                    body: JSON.stringify(refreshBody),
+                    ...(cookieMode ? { credentials: 'include' as RequestCredentials } : {}),
                 });
 
                 if (!refreshResponse.ok) {

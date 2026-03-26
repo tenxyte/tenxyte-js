@@ -1,6 +1,6 @@
 {
     "name": "@tenxyte/vue",
-    "version": "0.5.2",
+    "version": "0.5.3",
     "description": "Vue bindings for the Tenxyte SDK",
     "main": "./dist/index.cjs",
     "module": "./dist/index.js",
@@ -43,7 +43,7 @@
     "license": "MIT",
     "type": "module",
     "peerDependencies": {
-        "@tenxyte/core": "^0.9.3",
+        "@tenxyte/core": "^0.9.4",
         "vue": "^3.3.0"
     },
     "devDependencies": {

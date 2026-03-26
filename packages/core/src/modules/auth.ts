@@ -39,6 +39,12 @@ export interface SocialLoginRequest {
     access_token?: string;
     authorization_code?: string;
     id_token?: string;
+    /** Authorization code for the code exchange flow. */
+    code?: string;
+    /** Redirect URI matching the one used in the authorization request. */
+    redirect_uri?: string;
+    /** PKCE code verifier (RFC 7636). Required if the authorization request included a code_challenge. */
+    code_verifier?: string;
 }
 
 /** Response from the registration endpoint (may include tokens if `login: true`). */
@@ -127,10 +133,16 @@ export class AuthModule {
     /**
      * Logout from the current session.
      * Informs the backend to immediately revoke the specified refresh token.
-     * @param refreshToken - The refresh token to revoke.
+     * When cookie mode is enabled, the refresh token parameter is optional —
+     * the server reads it from the HttpOnly cookie and clears it via Set-Cookie.
+     * @param refreshToken - The refresh token to revoke (optional in cookie mode).
      */
-    async logout(refreshToken: string): Promise<void> {
-        await this.client.post<void>('/api/v1/auth/logout/', { refresh_token: refreshToken });
+    async logout(refreshToken?: string): Promise<void> {
+        const body: Record<string, string> = {};
+        if (refreshToken) {
+            body.refresh_token = refreshToken;
+        }
+        await this.client.post<void>('/api/v1/auth/logout/', body);
         await this.clearTokens();
     }
 
@@ -146,11 +158,17 @@ export class AuthModule {
     /**
      * Manually refresh the access token using a valid refresh token.
      * The refresh token is automatically rotated for improved security.
-     * @param refreshToken - The current refresh token.
+     * When cookie mode is enabled, the refresh token parameter is optional —
+     * the server reads it from the HttpOnly cookie.
+     * @param refreshToken - The current refresh token (optional in cookie mode).
      * @returns A new token pair (access + rotated refresh).
      */
-    async refreshToken(refreshToken: string): Promise<TokenPair> {
-        const tokens = await this.client.post<TokenPair>('/api/v1/auth/refresh/', { refresh_token: refreshToken });
+    async refreshToken(refreshToken?: string): Promise<TokenPair> {
+        const body: Record<string, string> = {};
+        if (refreshToken) {
+            body.refresh_token = refreshToken;
+        }
+        const tokens = await this.client.post<TokenPair>('/api/v1/auth/refresh/', body);
         return this.persistTokens(tokens);
     }
 
@@ -189,11 +207,21 @@ export class AuthModule {
      * @param provider - The OAuth provider ('google', 'github', etc.)
      * @param code - The authorization code retrieved from the query string parameters.
      * @param redirectUri - The original redirect URI that was requested.
+     * @param codeVerifier - Optional PKCE code verifier (RFC 7636).
      * @returns An active session token pair after successful code exchange.
      */
-    async handleSocialCallback(provider: 'google' | 'github' | 'microsoft' | 'facebook', code: string, redirectUri: string): Promise<TokenPair> {
+    async handleSocialCallback(
+        provider: 'google' | 'github' | 'microsoft' | 'facebook',
+        code: string,
+        redirectUri: string,
+        codeVerifier?: string,
+    ): Promise<TokenPair> {
+        const params: Record<string, string> = { code, redirect_uri: redirectUri };
+        if (codeVerifier) {
+            params.code_verifier = codeVerifier;
+        }
         const tokens = await this.client.get<TokenPair>(`/api/v1/auth/social/${provider}/callback/`, {
-            params: { code, redirect_uri: redirectUri },
+            params,
         });
         return this.persistTokens(tokens);
     }
