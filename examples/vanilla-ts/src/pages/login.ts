@@ -1,3 +1,4 @@
+import type { GeneratedSchema } from '@tenxyte/core'
 import { tx } from '../client'
 import { navigate } from '../router'
 
@@ -27,9 +28,9 @@ export function mount(container: HTMLElement): void {
         btn.disabled = true
         btn.textContent = 'Signing in…'
         try {
-            // device_info: '' is a placeholder; autoDeviceInfo: true on the client
-            // injects the real fingerprint automatically (interceptor replaces falsy values).
-            await tx.auth.loginWithEmail({ email, password, device_info: '' })
+            // device_info is omitted: autoDeviceInfo: true on the client injects the
+            // real device fingerprint automatically via request interceptor.
+            await tx.auth.loginWithEmail({ email, password } as GeneratedSchema['LoginEmail'])
             navigate('/dashboard')
         } catch (e: unknown) {
             const err = e as Record<string, unknown>
