@@ -1,5 +1,7 @@
+import type { TenxyteError } from '@tenxyte/core'
 import { tx } from '../client'
 import { navigate } from '../router'
+import { toast } from './toast'
 
 type LogLevel = 'error' | 'success' | 'warning' | 'info'
 
@@ -40,6 +42,7 @@ export function logEvent(name: string, payload?: unknown, level: LogLevel = 'inf
 export function initLogger(): void {
     tx.on('session:expired', () => {
         logEvent('session:expired', undefined, 'error')
+        toast.error('Session expired, please sign in again')
         navigate('/login')
     })
 
@@ -57,5 +60,7 @@ export function initLogger(): void {
 
     tx.on('error', ({ error }) => {
         logEvent('error', error, 'error')
+        const msg = (error as TenxyteError)?.error ?? 'An unexpected SDK error occurred'
+        toast.error(msg)
     })
 }
