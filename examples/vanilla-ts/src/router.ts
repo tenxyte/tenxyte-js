@@ -1,5 +1,6 @@
 import { tx } from './client'
 import { setActiveNavItem, toggleShell, populateOrgSwitcher } from './layout'
+import { toast } from './utils/toast'
 
 let orgSwitcherReady = false
 
@@ -59,9 +60,21 @@ async function handleRoute(): Promise<void> {
         return
     }
 
+    // #07.1: RBAC guard — admin route requires admin:read permission
+    if (path === '/admin' && !tx.rbac.hasPermission('admin:read')) {
+        toast.error('Access denied')
+        navigate('/dashboard')
+        return
+    }
+
     if (route.protected && !orgSwitcherReady) {
         orgSwitcherReady = true
         void populateOrgSwitcher()
+        // Hide Admin link in sidebar if user lacks admin:read permission
+        if (!tx.rbac.hasPermission('admin:read')) {
+            const adminLink = document.querySelector<HTMLAnchorElement>('[data-route="/admin"]')
+            if (adminLink) adminLink.style.display = 'none'
+        }
     }
 
     const page = await route.load()
