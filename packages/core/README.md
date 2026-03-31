@@ -333,11 +333,11 @@ await tx.gdpr.processExpiredDeletions();
 ### Dashboard (`tx.dashboard`)
 
 ```typescript
-const global = await tx.dashboard.getStats({ period: 'last_30_days' });
+const global = await tx.dashboard.getStats({ period: '30d', compare: true });
 const auth = await tx.dashboard.getAuthStats();
 const security = await tx.dashboard.getSecurityStats();
 const gdpr = await tx.dashboard.getGdprStats();
-const orgStats = await tx.dashboard.getOrganizationStats('acme-corp');
+const orgStats = await tx.dashboard.getOrganizationStats();
 ```
 
 ---
