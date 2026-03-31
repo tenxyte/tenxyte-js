@@ -1,3 +1,5 @@
+import { tx } from './client'
+
 type UserProfile = Record<string, unknown> & {
     first_name?: string
     last_name?: string
@@ -59,6 +61,38 @@ export function initLayout(): void {
         const list = document.querySelector<HTMLUListElement>('#event-log-list')
         if (list) list.innerHTML = ''
     })
+
+    const sel = document.querySelector<HTMLSelectElement>('#org-selector')!
+    sel.addEventListener('change', () => {
+        const slug = sel.value
+        if (!slug) {
+            tx.b2b.clearOrganization()
+            localStorage.removeItem('tx_active_org')
+        } else {
+            tx.b2b.switchOrganization(slug)
+            localStorage.setItem('tx_active_org', slug)
+        }
+        window.location.reload()
+    })
+}
+
+export async function populateOrgSwitcher(): Promise<void> {
+    const sel = document.querySelector<HTMLSelectElement>('#org-selector')
+    if (!sel) return
+    try {
+        const res  = await tx.b2b.listMyOrganizations()
+        const orgs = res.results as Array<{ id: number; name: string; slug: string }>
+        const savedSlug = localStorage.getItem('tx_active_org')
+        sel.innerHTML = `<option value="">— No organization —</option>`
+            + orgs.map(o =>
+                `<option value="${o.slug}" ${o.slug === savedSlug ? 'selected' : ''}>${o.name}</option>`
+            ).join('')
+        if (savedSlug) {
+            tx.b2b.switchOrganization(savedSlug)
+        }
+    } catch {
+        // not authenticated yet — select stays empty
+    }
 }
 
 export function updateHeader(user: UserProfile): void {

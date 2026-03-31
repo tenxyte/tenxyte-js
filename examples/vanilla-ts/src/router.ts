@@ -1,5 +1,7 @@
 import { tx } from './client'
-import { setActiveNavItem, toggleShell } from './layout'
+import { setActiveNavItem, toggleShell, populateOrgSwitcher } from './layout'
+
+let orgSwitcherReady = false
 
 type PageModule = { mount: (el: HTMLElement) => void; unmount?: () => void }
 interface Route { path: string; load: () => Promise<PageModule>; protected: boolean }
@@ -55,6 +57,11 @@ async function handleRoute(): Promise<void> {
     if (route.protected && !(await tx.isAuthenticated())) {
         navigate('/login')
         return
+    }
+
+    if (route.protected && !orgSwitcherReady) {
+        orgSwitcherReady = true
+        void populateOrgSwitcher()
     }
 
     const page = await route.load()

@@ -409,6 +409,156 @@ h2 {
 
 .magic-sent-icon { font-size: 2.2rem; margin-bottom: 8px; }
 
+/* ─── Organizations page ────────────────────────────────────── */
+
+.page-orgs {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px 0;
+}
+
+.page-orgs-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.page-orgs-header h2 { margin: 0; flex: 1; }
+
+.org-cards { display: flex; flex-direction: column; gap: 10px; }
+
+.org-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.org-card:hover { border-color: var(--color-primary); background: var(--color-surface-raised); }
+
+.org-avatar {
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  background: var(--color-primary);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 0.95rem;
+  flex-shrink: 0;
+}
+
+.org-card-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.org-card-arrow { color: var(--color-text-muted); font-size: 1.3rem; }
+
+.org-empty {
+  text-align: center;
+  padding: 40px 0;
+}
+
+.org-empty-icon { font-size: 2.5rem; margin-bottom: 10px; }
+
+.org-form {
+  margin-bottom: 16px;
+  padding: 20px;
+}
+
+/* ─── Members table ──────────────────────────────────────────── */
+
+.members-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.members-table th {
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.members-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+
+.members-table tr:last-child td { border-bottom: none; }
+
+.member-cell { display: flex; align-items: center; gap: 10px; }
+
+.member-avatar {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.75rem; font-weight: 600;
+  flex-shrink: 0;
+}
+
+/* ─── Role badges ────────────────────────────────────────────── */
+
+.role-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.role-owner  { background: #f3e8ff; color: #7c3aed; }
+.role-admin  { background: #dbeafe; color: #1d4ed8; }
+.role-member { background: #dcfce7; color: #166534; }
+.role-viewer { background: var(--color-surface-raised); color: var(--color-text-muted); }
+
+/* ─── Admin page ─────────────────────────────────────────────── */
+
+.page-admin {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px 0;
+}
+
+.page-admin h2 { margin-bottom: 24px; }
+
+.input--sm {
+  padding: 4px 8px;
+  font-size: 0.85rem;
+  height: auto;
+}
+
+.perms-tooltip {
+  margin-top: 6px;
+  padding: 8px 10px;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  max-width: 280px;
+}
+
+.perms-list {
+  list-style: none;
+  padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 4px;
+}
+
+.perms-list li code {
+  background: var(--color-surface);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.78rem;
+}
+
 /* ─── Settings page ─────────────────────────────────────────── */
 
 .page-settings {
