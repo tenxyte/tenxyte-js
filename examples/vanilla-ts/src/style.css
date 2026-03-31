@@ -968,6 +968,45 @@ h2 {
   color: #92400e;
 }
 
+/* ─── Sessions list (#08.3) ──────────────────────────────────── */
+
+.session-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.session-empty { color: var(--color-text-muted); font-size: 0.88rem; padding: 6px 0; }
+
+.session-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.session-device-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.session-device-info strong { font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.session-device-info small { font-size: 0.78rem; }
+
+/* ─── Danger zone (#08.2) ────────────────────────────────────── */
+
+.settings-danger {
+  background: #fff5f5;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  padding: 16px 20px;
+}
+
+.danger-block {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #fecaca;
+}
+
 /* ─── Settings page ─────────────────────────────────────────── */
 
 .page-settings {
