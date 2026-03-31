@@ -77,7 +77,7 @@ function renderTab(el: HTMLElement): void {
         case 'email':      renderEmailTab(el);  break
         case 'magic-link': renderMagicTab(el);  break
         case 'google':     renderGoogleTab(el);  break
-        case 'passkey':    renderStubTab(el, 'Passkey (WebAuthn) — issue #04.4'); break
+        case 'passkey':    renderPasskeyTab(el); break
     }
 }
 
@@ -115,6 +115,7 @@ function renderEmailTab(el: HTMLElement): void {
             // device_info is omitted: autoDeviceInfo: true on the client injects the
             // real device fingerprint automatically via request interceptor.
             await tx.auth.loginWithEmail(payload as GeneratedSchema['LoginEmail'])
+            if (needs2fa) logEvent('auth:2fa_verified', { method: 'totp' }, 'success')
             navigate('/dashboard')
         } catch (e: unknown) {
             const err = e as TenxyteError
@@ -269,8 +270,47 @@ function generateRandomHex(bytes: number): string {
     return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
-function renderStubTab(el: HTMLElement, label: string): void {
-    el.innerHTML = `<p class="text-muted" style="padding:12px 0">${label}</p>`
+function renderPasskeyTab(el: HTMLElement): void {
+    if (!window.PublicKeyCredential) {
+        el.innerHTML = `<p class="text-muted" style="padding:12px 0">WebAuthn is not supported by your browser.</p>`
+        return
+    }
+    el.innerHTML = `
+        <div class="oauth-tab">
+            <label class="label" for="passkey-email">Email <span class="text-muted">(optional)</span></label>
+            <input class="input" id="passkey-email" type="email" placeholder="you@example.com" autocomplete="email" />
+            <button class="btn" id="passkey-btn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" aria-hidden="true">
+                    <circle cx="12" cy="8" r="4"/>
+                    <path d="M16 16c0-2.2-1.8-4-4-4s-4 1.8-4 4"/>
+                    <path d="M18 12h2m-1-1v2"/>
+                </svg>
+                Sign in with a passkey
+            </button>
+            <div id="passkey-error" class="error-msg"></div>
+        </div>
+    `
+    el.querySelector<HTMLButtonElement>('#passkey-btn')!.addEventListener('click', async () => {
+        const btn    = el.querySelector<HTMLButtonElement>('#passkey-btn')!
+        const errEl  = el.querySelector<HTMLDivElement>('#passkey-error')!
+        const email  = el.querySelector<HTMLInputElement>('#passkey-email')!.value.trim() || undefined
+        btn.disabled = true; btn.textContent = 'Authenticating…'
+        errEl.textContent = ''
+        try {
+            await tx.security.authenticateWebAuthn(email)
+            logEvent('auth:passkey_login', { method: 'webauthn' }, 'success')
+            navigate('/dashboard')
+        } catch (e: unknown) {
+            const err = e as TenxyteError
+            const msg = err.error ?? 'Passkey authentication failed'
+            errEl.textContent = msg.includes('no credential') || msg.includes('not found')
+                ? 'No passkey found — register one in Settings first'
+                : msg
+            btn.disabled = false
+            btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M16 16c0-2.2-1.8-4-4-4s-4 1.8-4 4"/><path d="M18 12h2m-1-1v2"/></svg> Sign in with a passkey`
+        }
+    })
 }
 
 export function unmount(): void {
