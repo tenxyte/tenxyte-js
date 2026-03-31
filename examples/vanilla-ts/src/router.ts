@@ -21,22 +21,16 @@ export function getHashParams(): Record<string, string> {
     return qs ? Object.fromEntries(new URLSearchParams(qs)) : {}
 }
 
-function oauthCallbackMount(container: HTMLElement): void {
-    container.innerHTML = '<div class="card"><p>Processing OAuth callback…</p></div>'
-    // Full PKCE exchange: issue #03.2
-    navigate('/login')
-}
-
 const routes: Route[] = [
-    { path: '/login',          load: () => import('./pages/login'),         protected: false },
-    { path: '/register',       load: () => import('./pages/register'),      protected: false },
-    { path: '/dashboard',      load: () => import('./pages/dashboard'),     protected: true  },
-    { path: '/organizations',  load: () => import('./pages/organizations'), protected: true  },
-    { path: '/settings',       load: () => import('./pages/settings'),      protected: true  },
-    { path: '/admin',          load: () => import('./pages/admin'),         protected: true  },
-    { path: '/applications',   load: () => import('./pages/applications'),  protected: true  },
-    { path: '/ai',             load: () => import('./pages/ai-assistant'),  protected: true  },
-    { path: '/oauth/callback', load: () => Promise.resolve({ mount: oauthCallbackMount }), protected: false },
+    { path: '/login',          load: () => import('./pages/login'),           protected: false },
+    { path: '/register',       load: () => import('./pages/register'),        protected: false },
+    { path: '/dashboard',      load: () => import('./pages/dashboard'),       protected: true  },
+    { path: '/organizations',  load: () => import('./pages/organizations'),   protected: true  },
+    { path: '/settings',       load: () => import('./pages/settings'),        protected: true  },
+    { path: '/admin',          load: () => import('./pages/admin'),           protected: true  },
+    { path: '/applications',   load: () => import('./pages/applications'),    protected: true  },
+    { path: '/ai',             load: () => import('./pages/ai-assistant'),    protected: true  },
+    { path: '/oauth/callback', load: () => import('./pages/oauth-callback'), protected: false },
 ]
 
 async function handleRoute(): Promise<void> {
