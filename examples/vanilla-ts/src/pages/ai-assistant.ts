@@ -261,8 +261,8 @@ async function decide(container: HTMLElement, action: AgentAction, d: 'approve' 
         const feedback = action.type === 'create_task'
             ? `✅ Task <strong>${esc(action.params.title ?? 'task')}</strong> created and assigned to <strong>${esc(action.params.assignee ?? 'team')}</strong>. <a href="#/dashboard">View on Dashboard →</a>`
             : action.type === 'assign_task'
-                ? `✅ Task assigned to <strong>${esc(action.params.assignee)}</strong>.`
-                : `✅ Task status updated to <strong>${esc(action.params.status)}</strong>.`
+                ? `✅ Task assigned to <strong>${esc(action.params.assignee ?? 'team')}</strong>.`
+                : `✅ Task status updated to <strong>${esc(action.params.status ?? 'updated')}</strong>.`
         addAgentMsg(container, feedback)
     } else {
         logEvent('agent:action_rejected', { type: action.type, id: action.id }, 'warning')
