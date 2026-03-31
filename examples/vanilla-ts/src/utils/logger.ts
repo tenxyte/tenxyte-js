@@ -56,6 +56,7 @@ export function initLogger(): void {
 
     tx.on('agent:awaiting_approval', ({ action }) => {
         logEvent('agent:awaiting_approval', action, 'warning')
+        document.dispatchEvent(new CustomEvent('agent:awaiting_approval', { detail: action }))
     })
 
     tx.on('error', ({ error }) => {
