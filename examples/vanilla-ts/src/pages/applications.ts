@@ -1,7 +1,6 @@
-import type { TenxyteError } from '@tenxyte/core'
 import { tx } from '../client'
 import { toast } from '../utils/toast'
-import { logEvent } from '../utils/logger'
+import { logEvent, handleApiError } from '../utils/logger'
 
 interface App { id: string; name: string; description?: string; access_key: string; is_active: boolean; created_at: string }
 
@@ -44,7 +43,7 @@ async function loadAppList(container: HTMLElement): Promise<void> {
         // Spec: tx.applications.list({ orgId }) — actual: tx.applications.listApplications(params) — no orgId
         const res = await tx.applications.listApplications({ page: appPage, page_size: 12, ordering: '-created_at' })
         if (!res.results.length) {
-            list.innerHTML = `<p class="text-muted" style="padding:24px 0">No applications yet. Create your first one.</p>`
+            list.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🔑</div><p class="empty-state-title">No applications yet</p><p class="empty-state-desc">Create your first OAuth2 application to start integrating with the API.</p></div>`
             return
         }
         list.innerHTML = `
@@ -61,7 +60,7 @@ async function loadAppList(container: HTMLElement): Promise<void> {
             btn.addEventListener('click', () => void handleRevoke(container, btn.dataset.appId!, btn.dataset.appName!))
         )
     } catch (e: unknown) {
-        list.innerHTML = `<p class="error-msg">${(e as TenxyteError).error ?? 'Failed to load applications.'}</p>`
+        list.innerHTML = `<p class="error-msg">${handleApiError(e)}</p>`
     }
 }
 
@@ -132,7 +131,7 @@ async function handleCreate(container: HTMLElement, name: string, description?: 
         toast.success('Application created')
         showSecretModal(container, res.name, res.client_id, res.client_secret)
     } catch (e: unknown) {
-        toast.error((e as TenxyteError).error ?? 'Failed to create application')
+        toast.error(handleApiError(e))
     }
 }
 
@@ -200,7 +199,7 @@ async function handleRevoke(container: HTMLElement, appId: string, appName: stri
         toast.success(`${appName} revoked`)
         await loadAppList(container)
     } catch (e: unknown) {
-        toast.error((e as TenxyteError).error ?? 'Failed to revoke application')
+        toast.error(handleApiError(e))
     }
 }
 

@@ -1,6 +1,6 @@
-import type { TenxyteError } from '@tenxyte/core'
 import { tx } from '../client'
 import { toast } from '../utils/toast'
+import { handleApiError } from '../utils/logger'
 
 interface Org { id: number; name: string; slug: string; description?: string }
 interface Member {
@@ -59,8 +59,7 @@ async function loadOrgList(container: HTMLElement): Promise<void> {
                 .addEventListener('click', () => void renderOrgDetail(container, org))
         })
     } catch (e: unknown) {
-        const err = e as TenxyteError
-        listEl.innerHTML = `<p class="error-msg">${err.error ?? 'Failed to load organizations'}</p>`
+        listEl.innerHTML = `<p class="error-msg">${handleApiError(e)}</p>`
     }
 }
 
@@ -115,8 +114,7 @@ function renderCreateForm(formEl: HTMLElement, container: HTMLElement): void {
                 formEl.innerHTML = ''
                 await loadOrgList(container)
             } catch (e: unknown) {
-                const err = e as TenxyteError
-                errEl.textContent = err.error ?? 'Creation failed'
+                errEl.textContent = handleApiError(e)
                 btn.disabled = false; btn.textContent = 'Create'
             }
         })
@@ -156,7 +154,7 @@ async function loadMembers(container: HTMLElement, org: Org): Promise<void> {
             m.role.code === 'admin' || m.role.code === 'owner'
         ).length
         tableEl.innerHTML = members.length === 0
-            ? `<p class="text-muted">No members yet.</p>`
+            ? `<div class="empty-state"><div class="empty-state-icon">👥</div><p class="empty-state-title">No members yet</p><p class="empty-state-desc">Invite your first teammate using the button above.</p></div>`
             : `
                 <table class="members-table">
                     <thead><tr>
@@ -178,21 +176,19 @@ async function loadMembers(container: HTMLElement, org: Org): Promise<void> {
                     toast.info(`${email} removed`)
                     await loadMembers(container, org)
                 } catch (e: unknown) {
-                    const err = e as TenxyteError
-                    toast.error(err.error ?? 'Failed to remove member')
+                    toast.error(handleApiError(e))
                     btn.disabled = false
                 }
             })
         })
     } catch (e: unknown) {
-        const err = e as TenxyteError
-        tableEl.innerHTML = `<p class="error-msg">${err.error ?? 'Failed to load members'}</p>`
+        tableEl.innerHTML = `<p class="error-msg">${handleApiError(e)}</p>`
     }
 }
 
 function memberRow(m: Member, adminCount: number): string {
     const initials = [m.first_name?.[0], m.last_name?.[0]].filter(Boolean).join('').toUpperCase()
-        || m.email[0].toUpperCase()
+        || m.email.charAt(0).toUpperCase()
     const isLastAdmin = (m.role.code === 'admin' || m.role.code === 'owner') && adminCount <= 1
     return `
         <tr>
@@ -253,8 +249,7 @@ function renderInviteForm(formEl: HTMLElement, org: Org, container: HTMLElement)
                 formEl.innerHTML = ''
                 await loadMembers(container, org)
             } catch (e: unknown) {
-                const err = e as TenxyteError
-                errEl.textContent = err.error ?? 'Failed to send invitation'
+                errEl.textContent = handleApiError(e)
                 btn.disabled = false; btn.textContent = 'Send invitation'
             }
         })

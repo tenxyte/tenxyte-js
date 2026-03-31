@@ -1,7 +1,6 @@
-import type { TenxyteError } from '@tenxyte/core'
 import { tx } from '../client'
 import { toast } from '../utils/toast'
-import { logEvent } from '../utils/logger'
+import { logEvent, handleApiError } from '../utils/logger'
 
 interface Member {
     id: number; user_id: number; email: string
@@ -74,7 +73,7 @@ async function loadStats(grid: HTMLElement): Promise<void> {
             statCard('Login Success Rate', fmtPct(t.login_success_rate),    undefined),
             statCard('2FA Adoption',       twoFa != null ? fmtPct(twoFa) : (t.security_incidents != null ? `${t.security_incidents} incidents` : '—'), undefined),
         ].join('')
-    } catch { grid.innerHTML = `<p class="error-msg">Failed to load statistics.</p>` }
+    } catch (e: unknown) { grid.innerHTML = `<p class="error-msg">${handleApiError(e)}</p>` }
 }
 
 function statCard(label: string, value: string, delta?: number): string {
@@ -155,7 +154,7 @@ async function loadAuditTable(body: HTMLElement, section: HTMLElement): Promise<
         body.querySelector('#audit-prev')?.addEventListener('click', async () => { auditPage--; await loadAuditTable(body, section) })
         body.querySelector('#audit-next')?.addEventListener('click', async () => { auditPage++; await loadAuditTable(body, section) })
     } catch (e: unknown) {
-        body.innerHTML = `<p class="error-msg">${(e as TenxyteError).error ?? 'Failed to load audit logs.'}</p>`
+        body.innerHTML = `<p class="error-msg">${handleApiError(e)}</p>`
     }
 }
 
@@ -221,8 +220,7 @@ async function loadRoleTable(tableEl: HTMLElement, slug: string): Promise<void> 
                     logEvent('rbac:role_assigned', { userId, email, role: roleCode, org: slug }, 'success')
                     toast.success(`Role updated for ${email}`)
                 } catch (e: unknown) {
-                    const err = e as TenxyteError
-                    toast.error(err.error ?? 'Failed to update role')
+                    toast.error(handleApiError(e))
                 } finally {
                     sel.disabled = false
                 }
@@ -255,8 +253,7 @@ async function loadRoleTable(tableEl: HTMLElement, slug: string): Promise<void> 
             })
         })
     } catch (e: unknown) {
-        const err = e as TenxyteError
-        tableEl.innerHTML = `<p class="error-msg">${err.error ?? 'Failed to load members'}</p>`
+        tableEl.innerHTML = `<p class="error-msg">${handleApiError(e)}</p>`
     }
 }
 

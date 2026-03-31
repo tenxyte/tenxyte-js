@@ -2,7 +2,7 @@ import type { TenxyteError } from '@tenxyte/core'
 import { tx } from '../client'
 import { navigate } from '../router'
 import { toast } from '../utils/toast'
-import { logEvent } from '../utils/logger'
+import { logEvent, handleApiError } from '../utils/logger'
 
 interface TwoFAStatus { is_enabled: boolean; backup_codes_remaining: number }
 interface WebAuthnCredential { id: number; device_name: string; created_at: string; last_used_at?: string }
@@ -48,8 +48,8 @@ async function render2FASection(el: HTMLElement): Promise<void> {
     try {
         const status = await tx.security.get2FAStatus()
         paint2FASection(el, status)
-    } catch {
-        el.innerHTML = `<p class="error-msg">Failed to load 2FA status.</p>`
+    } catch (e: unknown) {
+        el.innerHTML = `<p class="error-msg">${handleApiError(e)}</p>`
     }
 }
 
@@ -193,8 +193,8 @@ async function renderPasskeySection(el: HTMLElement): Promise<void> {
     try {
         const res = await tx.security.listWebAuthnCredentials()
         paintPasskeySection(el, res.credentials as WebAuthnCredential[])
-    } catch {
-        el.innerHTML = `<p class="error-msg">Failed to load passkeys.</p>`
+    } catch (e: unknown) {
+        el.innerHTML = `<p class="error-msg">${handleApiError(e)}</p>`
     }
 }
 
@@ -350,7 +350,7 @@ function renderPasswordSection(el: HTMLElement): void {
             } else if (code === 'PASSWORD_BREACHED') {
                 errorEl.textContent = '⚠️ This password was found in a data breach. Choose another.'
             } else {
-                errorEl.textContent = err.error ?? 'Failed to change password'
+                errorEl.textContent = handleApiError(e)
             }
         } finally {
             saveBtn.disabled = false; saveBtn.textContent = 'Change Password'
@@ -400,8 +400,7 @@ function paintSessionsSection(el: HTMLElement, sessions: SessionInfo[] | null): 
             toast.info('All sessions disconnected')
             navigate('/login')
         } catch (e: unknown) {
-            const err = e as TenxyteError
-            toast.error(err.error ?? 'Failed to disconnect sessions')
+            toast.error(handleApiError(e))
         }
     })
     el.querySelectorAll<HTMLButtonElement>('.session-revoke-btn').forEach(btn => {
@@ -414,8 +413,7 @@ function paintSessionsSection(el: HTMLElement, sessions: SessionInfo[] | null): 
                 toast.info('Session disconnected')
                 await renderSessionsSection(el)
             } catch (e: unknown) {
-                const err = e as TenxyteError
-                toast.error(err.error ?? 'Failed to disconnect')
+                toast.error(handleApiError(e))
                 btn.disabled = false
             }
         })
@@ -479,8 +477,7 @@ function renderDataSection(el: HTMLElement): void {
             el.querySelector<HTMLInputElement>('#export-pwd')!.value = ''
             btn.textContent = 'Export my data'
         } catch (e: unknown) {
-            const err = e as TenxyteError
-            toast.error(err.error ?? 'Export failed')
+            toast.error(handleApiError(e))
             btn.disabled = false; btn.textContent = 'Export my data'
         }
     })
@@ -592,8 +589,7 @@ function showDeleteStep2(): void {
             await tx.auth.logoutAll()
             navigate('/login')
         } catch (e: unknown) {
-            const err = e as TenxyteError
-            errorEl.textContent = err.error ?? 'Deletion request failed'
+            errorEl.textContent = handleApiError(e)
             confirmBtn.disabled = false; confirmBtn.textContent = 'Delete my account'
         }
     })
