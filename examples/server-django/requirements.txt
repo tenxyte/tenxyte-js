@@ -1,0 +1,21 @@
+# Django + DRF
+Django>=5.1,<5.2
+djangorestframework>=3.15,<3.16
+
+# Tenxyte with MongoDB and WebAuthn support
+tenxyte[mongodb,webauthn]>=1.0,<2.0
+
+# Task queue
+celery[redis]>=5.3,<5.4
+
+# API documentation
+drf-spectacular>=0.27,<0.28
+
+# Production server
+gunicorn>=22.0,<23.0
+
+# Environment configuration
+python-decouple>=3.8,<4.0
+
+# CORS
+django-cors-headers>=4.3,<5.0
