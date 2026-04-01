@@ -1,17 +1,20 @@
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 from tenxyte.decorators import require_jwt, require_org_context, require_org_permission
 
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def health_check(request):
     """
     Health check endpoint for monitoring and load balancers.
+    No authentication required.
     """
     return Response({
-        'status': 'healthy',
-        'service': 'tenxyte-django-server',
+        'status': 'ok',
+        'service': 'tenxyte-django-example',
     }, status=status.HTTP_200_OK)
 
 
