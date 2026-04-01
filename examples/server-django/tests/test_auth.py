@@ -90,6 +90,29 @@ class MagicLinkTests(TestCase):
         self.assertIn(response.status_code, [200, 201, 202])
 
 
+class GoogleOAuth2Tests(TestCase):
+    """Issue #73 - Google OAuth2 (PKCE)"""
+    
+    def setUp(self):
+        self.client = APIClient()
+    
+    def test_google_oauth_endpoint_exists(self):
+        """
+        Verify Google OAuth2 endpoint exists.
+        
+        Note: Full PKCE flow requires real Google credentials and browser interaction.
+        This test only verifies the endpoint is available.
+        """
+        # The endpoint should exist but will fail without valid code
+        response = self.client.post('/api/v1/auth/social/google/', {
+            'code': 'dummy_code',
+            'code_verifier': 'dummy_verifier',
+        })
+        
+        # Should return 400 (invalid code) or 401, not 404
+        self.assertIn(response.status_code, [400, 401, 403])
+
+
 class JWTRefreshLogoutTests(TestCase):
     """Issue #74 - JWT Refresh + Logout / Logout All"""
     
