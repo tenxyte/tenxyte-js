@@ -45,6 +45,9 @@ pytest --cov=apps --cov=server
 **Issue #72** — Magic Link (Passwordless)
 - ✅ `test_magic_link_request` — POST /api/v1/auth/magic-link/request/
 
+**Issue #73** — Google OAuth2 (PKCE)
+- ✅ `test_google_oauth_endpoint_exists` — POST /api/v1/auth/social/google/ (endpoint verification)
+
 **Issue #74** — JWT Refresh + Logout
 - ✅ `test_logout` — POST /api/v1/auth/logout/
 - ✅ `test_logout_all` — POST /api/v1/auth/logout/all/
@@ -57,6 +60,10 @@ pytest --cov=apps --cov=server
 
 **Issue #77** — OTP (Email Verification)
 - ✅ `test_otp_request` — POST /api/v1/auth/otp/request/
+
+**Issue #78** — Passkeys / WebAuthn (FIDO2)
+- ✅ `test_webauthn_register_begin` — POST /api/v1/auth/webauthn/register/begin/
+- ✅ `test_webauthn_authenticate_begin` — POST /api/v1/auth/webauthn/authenticate/begin/
 
 **Issue #79** — Password Management
 - ✅ `test_password_change` — POST /api/v1/auth/password/change/
@@ -84,11 +91,33 @@ pytest --cov=apps --cov=server
 - ✅ `test_org_info_with_valid_org` — GET /api/v1/org-info/ (with X-Org-Slug)
 - ✅ `test_org_info_with_invalid_org` — GET /api/v1/org-info/ (invalid org)
 
+### EPIC #85 — Admin, Audit & Applications
+
+**Issue #86** — Dashboard Stats
+- ✅ `test_dashboard_stats` — GET /api/v1/auth/dashboard/stats/
+- ✅ `test_security_stats` — GET /api/v1/auth/dashboard/security-stats/
+- ✅ `test_dashboard_stats_with_compare` — GET /api/v1/auth/dashboard/stats/?compare=true
+
+**Issue #87** — Audit Logs
+- ✅ `test_list_audit_logs` — GET /api/v1/auth/audit-logs/
+- ✅ `test_audit_logs_filter_by_action` — GET /api/v1/auth/audit-logs/?action=login_failed
+- ✅ `test_audit_logs_ordering` — GET /api/v1/auth/audit-logs/?ordering=-created_at
+- ✅ `test_audit_logs_pagination` — GET /api/v1/auth/audit-logs/?page=2
+
+**Issue #88** — Token (Session) Management
+- ✅ `test_list_tokens` — GET /api/v1/auth/tokens/
+
+**Issue #89** — Applications CRUD (API Keys)
+- ✅ `test_list_applications` — GET /api/v1/auth/applications/
+- ✅ `test_create_application` — POST /api/v1/auth/applications/
+- ✅ `test_patch_application` — PATCH /api/v1/auth/applications/{id}/
+
 ## Notes
 
 - All endpoints are provided by Tenxyte with **zero custom code** (except Issue #84 demo view)
 - Tests verify configuration is correct
 - Magic links and password reset links are printed to console in development mode
-- Google OAuth2 (Issue #73) requires manual testing with real Google credentials
+- Google OAuth2 (Issue #73) requires manual testing with real Google credentials and browser
 - WebAuthn (Issue #78) requires browser testing with HTTPS or localhost exception
 - Org-scoped views require `X-Org-Slug` header and appropriate permissions
+- Admin endpoints (dashboard, audit logs, tokens, applications) require specific permissions

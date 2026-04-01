@@ -68,6 +68,46 @@ class OTPTests(TestCase):
         self.assertIn(response.status_code, [200, 201, 202])
 
 
+class WebAuthnTests(TestCase):
+    """Issue #78 - Passkeys / WebAuthn (FIDO2)"""
+    
+    def setUp(self):
+        self.client = APIClient()
+        self.user_data = {
+            'email': 'webauthn@example.com',
+            'password': 'SecureP@ss123!',
+            'first_name': 'WebAuthn',
+            'last_name': 'User',
+        }
+        self.client.post('/api/v1/auth/register/', self.user_data)
+        login_response = self.client.post('/api/v1/auth/login/email/', {
+            'email': self.user_data['email'],
+            'password': self.user_data['password'],
+        })
+        self.access_token = login_response.data['access_token']
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
+    
+    def test_webauthn_register_begin(self):
+        """POST /api/v1/auth/webauthn/register/begin/ → returns challenge"""
+        response = self.client.post('/api/v1/auth/webauthn/register/begin/')
+        
+        # Should return challenge data
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('challenge', response.data)
+    
+    def test_webauthn_authenticate_begin(self):
+        """POST /api/v1/auth/webauthn/authenticate/begin/ → returns challenge"""
+        # Logout first for authentication flow
+        self.client.credentials()
+        
+        response = self.client.post('/api/v1/auth/webauthn/authenticate/begin/', {
+            'email': self.user_data['email'],
+        })
+        
+        # Should return challenge or error if no passkey registered
+        self.assertIn(response.status_code, [200, 400, 404])
+
+
 class PasswordManagementTests(TestCase):
     """Issue #79 - Password Management (Change, Reset, Breach Check)"""
     
