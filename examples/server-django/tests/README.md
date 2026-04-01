@@ -112,12 +112,50 @@ pytest --cov=apps --cov=server
 - ✅ `test_create_application` — POST /api/v1/auth/applications/
 - ✅ `test_patch_application` — PATCH /api/v1/auth/applications/{id}/
 
+### EPIC #90 — GDPR & Data Compliance
+
+**Issue #91** — Data Export
+- ✅ `test_data_export_with_password` — POST /api/v1/auth/gdpr/export/
+- ✅ `test_data_export_without_password` — POST /api/v1/auth/gdpr/export/ (400 validation)
+
+**Issue #92** — Account Deletion with Grace Period
+- ✅ `test_schedule_deletion` — POST /api/v1/auth/gdpr/delete/
+- ✅ `test_deletion_status` — GET /api/v1/auth/gdpr/delete/status/
+- ✅ `test_cancel_deletion` — POST /api/v1/auth/gdpr/delete/cancel/
+
+**Issue #93** — Security Headers + CORS Hardening
+- ✅ `test_security_headers_present` — Verify security headers on responses
+- ✅ `test_cors_preflight` — OPTIONS preflight with allowed origin
+
+### EPIC #94 — AIRS (AI Responsibility & Security)
+
+**Issue #95** — AgentToken Lifecycle
+- ✅ `test_create_agent_token` — POST /api/v1/auth/ai/tokens/
+- ✅ `test_agent_token_heartbeat` — POST /api/v1/auth/ai/tokens/{id}/heartbeat/
+- ✅ `test_revoke_all_agent_tokens` — POST /api/v1/auth/ai/tokens/revoke-all/
+
+**Issue #96** — Human-in-the-Loop (HITL)
+- ✅ `test_list_pending_actions` — GET /api/v1/auth/ai/pending-actions/
+- ✅ `test_sensitive_action_endpoint_exists` — POST /api/v1/sensitive-action/ (custom view)
+- ✅ `test_sensitive_action_with_agent_token` — HITL flow verification
+
+**Issue #97** — Circuit Breaker + Budget Tracking
+- ✅ `test_create_agent_token_with_budget` — AgentToken with budget_limit_usd
+- ✅ `test_report_usage_exceeds_budget` — POST /api/v1/auth/ai/tokens/{id}/report-usage/
+
+**Issue #98** — PII Redaction Guardrail
+- ✅ `test_agent_receives_redacted_pii` — Agent request with PII redaction
+- ✅ `test_human_receives_full_data` — Human JWT receives unredacted data
+
 ## Notes
 
-- All endpoints are provided by Tenxyte with **zero custom code** (except Issue #84 demo view)
+- All endpoints are provided by Tenxyte with **zero custom code** (except Issues #84, #96 demo views)
 - Tests verify configuration is correct
 - Magic links and password reset links are printed to console in development mode
 - Google OAuth2 (Issue #73) requires manual testing with real Google credentials and browser
 - WebAuthn (Issue #78) requires browser testing with HTTPS or localhost exception
 - Org-scoped views require `X-Org-Slug` header and appropriate permissions
 - Admin endpoints (dashboard, audit logs, tokens, applications) require specific permissions
+- AIRS endpoints use `AgentBearer` authentication for agent tokens
+- HITL flow requires user confirmation via `/api/v1/auth/ai/pending-actions/{token}/confirm/`
+- PII redaction applies when `TENXYTE_AIRS_REDACT_PII = True`
