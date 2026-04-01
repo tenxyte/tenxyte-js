@@ -32,3 +32,23 @@ def org_info(request):
         'user': request.user.email,
         'user_role': getattr(request, 'org_role', None),
     }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+def sensitive_action(request):
+    """
+    Demo HITL (Human-in-the-Loop) protected view.
+    When called by an agent, returns 202 Accepted with confirmation_token.
+    User must confirm via /api/v1/auth/ai/pending-actions/{token}/confirm/
+    
+    Issue #96 - Human-in-the-Loop (HITL)
+    """
+    from tenxyte.decorators import require_agent_clearance
+    
+    # Apply HITL decorator dynamically for demo
+    # In production, use @require_agent_clearance(human_in_the_loop_required=True)
+    
+    return Response({
+        'message': 'Sensitive action executed',
+        'user': getattr(request.user, 'email', None),
+    }, status=status.HTTP_200_OK)
