@@ -107,6 +107,18 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'UTC'
 
+from celery.schedules import crontab
+CELERY_BEAT_SCHEDULE = {
+    'check-agent-heartbeats': {
+        'task': 'tenxyte.tasks.agent_tasks.check_agent_heartbeats',
+        'schedule': 60.0,
+    },
+    'daily-db-cleanup': {
+        'task': 'apps.core.tasks.run_tenxyte_cleanup',
+        'schedule': crontab(hour=3, minute=0),
+    },
+}
+
 # DRF Configuration
 REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
@@ -137,6 +149,8 @@ TENXYTE_AIRS_BUDGET_TRACKING_ENABLED = True
 TENXYTE_AIRS_REDACT_PII = True
 TENXYTE_TOTP_ISSUER = 'TenxyteExample'
 TENXYTE_EMAIL_BACKEND = 'tenxyte.backends.email.ConsoleBackend'
+TENXYTE_SECURITY_HEADERS_ENABLED = True
+TENXYTE_EXEMPT_PATHS = ['/api/v1/health/', '/api/v1/docs/', '/api/v1/docs/redoc/']
 
 # CORS Configuration
 TENXYTE_CORS_ALLOWED_ORIGINS = [
