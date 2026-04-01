@@ -1,6 +1,6 @@
 # Server Django Tests
 
-Automated tests for EPICs #70 (Authentication & Sessions) and #75 (Security).
+Automated tests for EPICs #70 (Authentication & Sessions), #75 (Security), and #80 (RBAC & Organizations).
 
 ## Running Tests
 
@@ -63,10 +63,32 @@ pytest --cov=apps --cov=server
 - ✅ `test_breach_check_rejects_weak_password` — Breach check validation
 - ✅ `test_password_reset_request` — POST /api/v1/auth/password/reset/request/
 
+### EPIC #80 — RBAC & Organizations
+
+**Issue #81** — Global RBAC Seeding
+- ✅ `test_list_permissions` — GET /api/v1/auth/permissions/
+- ✅ `test_list_roles` — GET /api/v1/auth/roles/
+- ✅ `test_get_my_roles` — GET /api/v1/auth/me/roles/
+
+**Issue #82** — Organizations (B2B) Enable + Seed Org Roles
+- ✅ `test_list_org_roles` — GET /api/v1/auth/org-roles/
+- ✅ `test_create_organization` — POST /api/v1/auth/organizations/
+
+**Issue #83** — Member Management & Invitations
+- ✅ `test_list_my_organizations` — GET /api/v1/auth/organizations/list/
+- ✅ `test_list_organization_members` — GET /api/v1/auth/organizations/members/
+- ✅ `test_send_organization_invitation` — POST /api/v1/auth/organizations/invitations/
+
+**Issue #84** — Org-Scoped RBAC on Custom Views
+- ✅ `test_org_info_without_org_header` — GET /api/v1/org-info/ (missing header)
+- ✅ `test_org_info_with_valid_org` — GET /api/v1/org-info/ (with X-Org-Slug)
+- ✅ `test_org_info_with_invalid_org` — GET /api/v1/org-info/ (invalid org)
+
 ## Notes
 
-- All endpoints are provided by Tenxyte with **zero custom code**
+- All endpoints are provided by Tenxyte with **zero custom code** (except Issue #84 demo view)
 - Tests verify configuration is correct
 - Magic links and password reset links are printed to console in development mode
 - Google OAuth2 (Issue #73) requires manual testing with real Google credentials
 - WebAuthn (Issue #78) requires browser testing with HTTPS or localhost exception
+- Org-scoped views require `X-Org-Slug` header and appropriate permissions
